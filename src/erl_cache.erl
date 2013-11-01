@@ -22,10 +22,10 @@ start() ->
 
 ?CACHE([{ttl, 5}, {evict, 5}]).
 test() ->
-	timer:sleep(1000),
-	wake_up.
+    timer:sleep(1000),
+    wake_up.
 
 ?CACHE([{ttl, 5}, {evict, 5}]).
 test(Time) ->
-	timer:sleep(Time),
-	{wake_up, Time}.
+    timer:sleep(Time),
+    {wake_up, Time}.
