@@ -1,5 +1,5 @@
 
--module(cache_sup).
+-module(erl_cache_sup).
 
 -behaviour(supervisor).
 
@@ -36,5 +36,5 @@ start_link() ->
 %% @end
 init([]) ->
     {ok, { {one_for_one, 5, 10}, [
-    	?CHILD(cache_server, worker, [])
+                                  ?CHILD(erl_cache_server, worker, [])
     ]} }.

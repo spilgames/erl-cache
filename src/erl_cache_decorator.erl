@@ -1,4 +1,4 @@
--module(cache_decorator).
+-module(erl_cache_decorator).
 
 -export([
 		cache_pt/3
@@ -8,8 +8,8 @@
 %% API
 %% ====================================================================
 
--spec cache_pt(function(), [term()], {atom(), atom(), cache_facade:cache_options()}) ->
-	function().
+-spec cache_pt(function(), [term()], {atom(), atom(),
+               erl_cache_facade:cache_options()}) -> fun(() -> term()).
 cache_pt(Fun, Args, {Module, FunctionAtom, Options}) ->
 	NewOptions = [
 		{ttl, proplists:get_value(ttl, Options, default)},
@@ -21,7 +21,7 @@ cache_pt(Fun, Args, {Module, FunctionAtom, Options}) ->
 		{refresh_evict, proplists:get_value(refresh_evict, Options, synchronous)}
 	],
 	Key = {decorated, Module, FunctionAtom, Args},
-	case cache_facade:get(Key, NewOptions) of
+	case erl_cache_facade:get(Key, NewOptions) of
 		{ok, Result} ->
 			fun() -> Result end;
 		{error, Err} ->

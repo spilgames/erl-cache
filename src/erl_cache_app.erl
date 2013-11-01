@@ -1,4 +1,4 @@
--module(cache_app).
+-module(erl_cache_app).
 
 -behaviour(application).
 
@@ -10,7 +10,7 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    cache_sup:start_link().
+    erl_cache_sup:start_link().
 
 stop(_State) ->
     ok.

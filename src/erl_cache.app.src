@@ -1,12 +1,12 @@
-{application, cache,
+{application, erl_cache,
  [
   {description, ""},
-  {vsn, "1"},
+  {vsn, git},
   {registered, []},
   {applications, [
                   kernel,
                   stdlib
                  ]},
-  {mod, { cache_app, []}},
+  {mod, { erl_cache_app, []}},
   {env, []}
  ]}.

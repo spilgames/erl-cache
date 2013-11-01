@@ -7,21 +7,21 @@
 
 %%====================================================================
 %% Spec:
-%%      ?CACHE(Options::cache_facade:cache_options()).    
+%%      ?CACHE(Options::erl_cache_facade:erl_cache_options()).
 %% Example:
 %%      ?AUTHENTICATE([{ttl, default}, {evict_after, default}, {refresh, never}]).
-%% Parameters: 
+%% Parameters:
 %%
-%% Options 
-%%      see      : cache_facade:cache_options() documentation
+%% Options
+%%      see      : erl_cache_facade:erl_cache_options() documentation
 %%====================================================================
 
 -ifdef(TEST).
     -ifdef(ENABLE_CACHE_DECORATOR).
-        -define(CACHE(Options), -decorate({cache_decorator, cache_pt, {?MODULE, ?FUNCTION, Options}})).
+        -define(CACHE(Options), -decorate({erl_cache_decorator, cache_pt, {?MODULE, ?FUNCTION, Options}})).
     -else.
         -define(CACHE(Options), -decorate({})).
     -endif.
 -else.
-    -define(CACHE(Options), -decorate({cache_decorator, cache_pt, {?MODULE, ?FUNCTION, Options}})).
+    -define(CACHE(Options), -decorate({erl_cache_decorator, cache_pt, {?MODULE, ?FUNCTION, Options}})).
 -endif.

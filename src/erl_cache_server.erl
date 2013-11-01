@@ -1,4 +1,4 @@
--module(cache_server).
+-module(erl_cache_server).
 
 -behaviour(gen_server).
 
@@ -32,14 +32,14 @@
 }).
 
 -record(entry, {
-	key::term(),
-	value::term(),
-	created::pos_integer(),
-	ttl::pos_integer(),
-	evict::pos_integer()
+    key::term(),
+    value::term(),
+    created::pos_integer(),
+    ttl::pos_integer(),
+    evict::pos_integer()
 }).
 
--define(ETS_CACHE_TABLE, cache_server_table).
+-define(ETS_CACHE_TABLE, erl_cache_server_table).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -51,11 +51,11 @@
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
--spec get(cache_facade:key()) ->
-	{hit, cache_facade:value()} |
-	{stale, cache_facade:value()} |
-	{evict, cache_facade:value()} |
-	{miss}.
+-spec get(erl_cache_facade:key()) ->
+    {hit, erl_cache_facade:value()} |
+    {stale, erl_cache_facade:value()} |
+    {evict, erl_cache_facade:value()} |
+    {miss}.
 get(Key) ->
     Now = elibs_time:now(),
     case ets:lookup(?ETS_CACHE_TABLE, Key) of
@@ -73,21 +73,21 @@ get(Key) ->
             {miss}
     end.
 
--spec set(cache_facade:key(), cache_facade:value(), pos_integer(), non_neg_integer()) -> ok.
+-spec set(erl_cache_facade:key(), erl_cache_facade:value(), pos_integer(), non_neg_integer()) -> ok.
 set(Key, Value, TtlDelta, EvictDelta) ->
-	Now = elibs_time:now(),
-	Ttl = Now + TtlDelta,
+    Now = elibs_time:now(),
+    Ttl = Now + TtlDelta,
     Evict = Ttl + EvictDelta,
-	Entry = #entry{
-		key=Key,
-		value=Value,
-		created=Now,
-		ttl=Ttl,
-		evict=Evict
-	},
+    Entry = #entry{
+        key=Key,
+        value=Value,
+        created=Now,
+        ttl=Ttl,
+        evict=Evict
+    },
     gen_server:cast(?SERVER, {set, Entry}).
 
--spec evict(cache_facade:key()) -> ok.
+-spec evict(erl_cache_facade:key()) -> ok.
 evict(Key) ->
     gen_server:cast(?SERVER, {evict, Key}).
 
@@ -101,9 +101,9 @@ get_stats() ->
     Info = ets:info(?ETS_CACHE_TABLE),
     Memory = proplists:get_value(memory, Info, 0),
     Entries = proplists:get_value(size, Info, 0),
-    %Keys = lists:flatten(lists:usort(ets:match(?ETS_CACHE_TABLE,{'$1','_'}))),    %ensure asc order 
+    %Keys = lists:flatten(lists:usort(ets:match(?ETS_CACHE_TABLE,{'$1','_'}))),    %ensure asc order
     %Stats = gen_server:call(?MODULE, get_stats, 500),
-    [{entries, Entries}, {memory, Memory}]. 
+    [{entries, Entries}, {memory, Memory}].
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
@@ -112,10 +112,10 @@ get_stats() ->
 -spec init([]) -> {ok, #state{}}.
 init([]) ->
     CacheTid = ets:new(?ETS_CACHE_TABLE, [
-    		set, protected, named_table, 
-    		{keypos,2},
-    		{read_concurrency, true}
-    	]),
+            set, protected, named_table,
+            {keypos,2},
+            {read_concurrency, true}
+        ]),
     {ok, #state{
         cache=CacheTid,
         stats=dict:new()
@@ -124,7 +124,7 @@ init([]) ->
 -spec handle_call(term(), term(), #state{}) ->
     {reply, Data::any(), #state{}}.
 handle_call(get_stats, _From, #state{stats=Stats} = State) ->
-    {reply, dict:to_list(Stats), State};    
+    {reply, dict:to_list(Stats), State};
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
@@ -181,6 +181,6 @@ update_stats(Key, Dict, [Stat|RestStats]) ->
 -spec update_cache_stats(term(), hit|miss|stale|set|evict) -> ok.
 %% @end
 update_cache_stats(Key, Result) ->
-    ?DEBUG("Roar cache ~p for key=~p", [Result, Key]),
+    ?DEBUG("erl_cache ~p for key=~p", [Result, Key]),
     gen_server:cast(?SERVER, {set_stats, Key, [{cache, Result}]}),
     ok.

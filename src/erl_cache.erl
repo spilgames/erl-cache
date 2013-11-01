@@ -1,9 +1,9 @@
--module(cache).
+-module(erl_cache).
 
 -export([start/0]).
 
 %Examples
--include_lib("cache.hrl").
+-include_lib("erl_cache.hrl").
 -export([test/0, test/1]).
 
 %% ====================================================================
@@ -14,7 +14,7 @@
 -spec start() -> {ok, fun(() -> ok)}.
 %% @end
 start() ->
-    elibs_application:start(cache).
+    elibs_application:start(erl_cache).
 
 %% ====================================================================
 %% Examples

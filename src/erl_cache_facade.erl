@@ -1,4 +1,4 @@
--module(cache_facade).
+-module(erl_cache_facade).
 
 -export([
 		get/1, get/2,
@@ -78,7 +78,7 @@ set(Key, Value, Options) ->
 	GetEvict = get_numeric_value(Options, evict),
 	case {GetTtl, GetEvict} of
 		{{ok, Ttl}, {ok, Evict}} ->
-			cache_server:set(Key, Value, Ttl, Evict);
+			erl_cache_server:set(Key, Value, Ttl, Evict);
 		{{error, ttl}, _} ->
 			{error, invalid_ttl};
 		{_, {error, evict}} ->
@@ -87,7 +87,7 @@ set(Key, Value, Options) ->
 
 -spec evict(key()) -> ok.
 evict(Key) ->
-	cache_server:evict(Key).
+	erl_cache_server:evict(Key).
 
 %% ====================================================================
 %% private
@@ -97,11 +97,11 @@ evict(Key) ->
 	{error, not_found} |
 	{ok, value()}.
 get_from_cache(Key) ->
-	case cache_server:get(Key) of
+	case erl_cache_server:get(Key) of
 		{miss} ->
 			{error, not_found};
 		{evict, _} ->
-			cache_server:evict(Key),
+			erl_cache_server:evict(Key),
 			{error, not_found};
 		{stale, Value} ->
 			{ok, Value};
@@ -114,7 +114,7 @@ get_from_cache(Key) ->
 	{error, not_found} |
 	{error, invalid_refresh}.
 get_and_maybe_refresh(Key, Fun, Options) ->
-	case cache_server:get(Key) of
+	case erl_cache_server:get(Key) of
 		{miss} ->
 			maybe_refresh(Key, undefined, Fun, Options, miss);
 		{evict, _} ->
@@ -157,7 +157,7 @@ get_refresh_strategy(Options, State) ->
 	end,
 	case proplists:get_value(OptionsKey, Options, default) of
 		default ->
-			case application:get_env(cache, DefaultKey) of
+			case application:get_env(erl_cache, DefaultKey) of
 				undefined ->
 					{ok, FallbackValue};
 				{ok, Refresh} when Refresh =:= never;
@@ -222,7 +222,7 @@ get_numeric_value(Options, Type) ->
 	end,
 	case proplists:get_value(OptionsKey, Options, default) of
 		default ->
-			case application:get_env(cache, DefaultKey) of
+			case application:get_env(erl_cache, DefaultKey) of
 				undefined ->
 					{ok, FallbackValue};
 				{ok, Ttl} when Ttl >= 0 ->
