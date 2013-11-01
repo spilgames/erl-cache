@@ -1,3 +1,6 @@
-Current version: 0.0.1
+Current version: 0.0.2
+    CHANGE rename to erl_cache
+
+tag: 0.0.1
     FIX unversion dependent applications
     NEW Initial commit
