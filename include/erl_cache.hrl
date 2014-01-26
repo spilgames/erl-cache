@@ -9,7 +9,7 @@
 %% Spec:
 %%      ?CACHE(Options::erl_cache_facade:erl_cache_options()).
 %% Example:
-%%      ?AUTHENTICATE([{ttl, default}, {evict_after, default}, {refresh, never}]).
+%%      ?CACHE([{ttl, default}, {evict_after, default}, {refresh, never}]).
 %% Parameters:
 %%
 %% Options

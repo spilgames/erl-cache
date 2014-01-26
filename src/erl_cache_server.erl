@@ -28,7 +28,7 @@
 
 -record(state, {
     cache::ets:tid(),        %% Holds cache
-    stats::dict()                           %% Statistics about cache hits
+    stats::dict()            %% Statistics about cache hits
 }).
 
 -record(entry, {
@@ -57,7 +57,7 @@ start_link() ->
     {evict, erl_cache_facade:value()} |
     {miss}.
 get(Key) ->
-    Now = elibs_time:now(),
+    Now = elibs_time:now_ms(os:timestamp()),
     case ets:lookup(?ETS_CACHE_TABLE, Key) of
         [#entry{ttl=Ttl, value=Value}] when Now < Ttl ->
             update_cache_stats(Key, hit),
@@ -75,7 +75,7 @@ get(Key) ->
 
 -spec set(erl_cache_facade:key(), erl_cache_facade:value(), pos_integer(), non_neg_integer()) -> ok.
 set(Key, Value, TtlDelta, EvictDelta) ->
-    Now = elibs_time:now(),
+    Now = elibs_time:now_ms(os:timestamp()),
     Ttl = Now + TtlDelta,
     Evict = Ttl + EvictDelta,
     Entry = #entry{
@@ -160,10 +160,6 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
-%% ------------------------------------------------------------------
-
-%% ------------------------------------------------------------------
-%% CACHE: labels_per_application
 %% ------------------------------------------------------------------
 
 %% @doc Update the stats dictionary. Per site keeps track of cached/expired stats.
