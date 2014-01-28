@@ -1,6 +1,6 @@
 -module(erl_cache).
 
--include_lib("erlanglibs/include/logging.hrl").
+-include("erl_cache.hrl").
 
 -export([
         get/1, get/2,
@@ -29,12 +29,6 @@
     cache_set_option/0, cache_get_option/0,
     key/0, value/0, refresh_function/0
 ]).
-
--define(DEFAULT_WAIT_FOR_REFRESH, true).
--define(DEFAULT_WAIT_UNTIL_CACHED, false).
--define(DEFAULT_VALIDITY, 300000).
--define(DEFAULT_EVICT, 60000).
--define(DEFAULT_REFRESH_CALLBACK, undefined).
 
 %% ====================================================================
 %% API
@@ -120,11 +114,14 @@ validate_value(Key, Opts) when Key==wait_for_refresh; Key==wait_until_cached ->
     end.
 
 -spec default(validity | evict) -> pos_integer().
-default(validity) -> elibs_application:get_env(erl_cache, validity, ?DEFAULT_VALIDITY);
-default(evict) -> elibs_application:get_env(erl_cache, evict, ?DEFAULT_EVICT);
-default(wait_for_refresh) ->
-    elibs_application:get_env(erl_cache, wait_for_refresh, ?DEFAULT_WAIT_FOR_REFRESH);
-default(wait_until_cached) ->
-    elibs_application:get_env(erl_cache, wait_until_cached, ?DEFAULT_WAIT_UNTIL_CACHED).
+default(validity) -> get_env(validity, ?DEFAULT_VALIDITY);
+default(evict) -> get_env(evict, ?DEFAULT_EVICT);
+default(wait_for_refresh) -> get_env(wait_for_refresh, ?DEFAULT_WAIT_FOR_REFRESH);
+default(wait_until_cached) -> get_env(wait_until_cached, ?DEFAULT_WAIT_UNTIL_CACHED).
 
-
+-spec get_env(atom(), term()) -> term().
+get_env(Key, Default) ->
+    case application:get_env(erl_cache, Key) of
+        {ok, Val} -> Val;
+        undefined -> Default
+    end.

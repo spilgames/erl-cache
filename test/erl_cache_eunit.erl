@@ -2,19 +2,27 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include("erl_cache.hrl").
+-include_lib("decorator_pt/include/decorator_pt.hrl").
 
 -ifdef(TEST).
 -export([wait/1]).
 -endif.
 
 %TODO turn this app into an instantiator of cache_servers
-%TODO Prepare to open source (deps, Makefile, etc)
 %TODO Documentation
 %TODO dialyzer
 
 setup() ->
-    {ok, F} = elibs_application:start(erl_cache),
-    [F].
+    ok = application:start(erl_cache),
+    Old = application:get_env(erl_cache, wait_for_refresh),
+    ok = application:set_env(erl_cache, wait_for_refresh, false),
+    [fun () -> application:stop(erl_cache) end,
+     fun () -> case Old of
+                    undefined -> application:unset_env(erl_cache, wait_for_refresh);
+                    {ok, Val} -> application:set_env(erl_cache, wait_for_refresh, Val)
+                end
+        end
+    ].
 
 cleanup(Funs) ->
     lists:foreach(fun (F) -> F() end, Funs).
@@ -122,10 +130,10 @@ stats() ->
     ?assertMatch(N when is_integer(N) andalso N>0, proplists:get_value(memory, Stats)).
 
 parse_transform() ->
-    {Time1, ok} = timer:tc(?MODULE, wait, [100]),
-    {Time2, ok} = timer:tc(?MODULE, wait, [100]),
-    ?assertMatch(N when N>100000, Time1),
-    ?assertMatch(N when N<100000, Time2).
+    {Time1, ok} = timer:tc(?MODULE, wait, [1000]),
+    {Time2, ok} = timer:tc(?MODULE, wait, [1000]),
+    ?assertMatch(N when N>1000000, Time1),
+    ?assertMatch(N when N<1000000, Time2).
 
 %% Internal functions
 
@@ -140,7 +148,7 @@ get_from_cache(K, Opts, SleepBefore) ->
 evict_from_cache(K) ->
     erl_cache:evict(K).
 
-?CACHE([{validity, 100}, {evict, 100}]).
+?CACHE([{validity, 1000}, {evict, 100}, {wait_until_cached, true}]).
 wait(Time) ->
     timer:sleep(Time),
     ok.

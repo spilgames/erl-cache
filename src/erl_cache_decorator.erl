@@ -26,4 +26,3 @@ cache_pt(Fun, Args, {Module, FunctionAtom, Options}) ->
             throw({error, {cache_pt, Err}})
     end.
 
-

@@ -2,7 +2,7 @@
 
 -behaviour(gen_server).
 
--include_lib("erlanglibs/include/logging.hrl").
+-include("erl_cache.hrl").
 
 -define(SERVER, ?MODULE).
 
@@ -57,7 +57,7 @@ start_link() ->
 -spec get(erl_cache:key(), boolean()) ->
     {ok, {hit, erl_cache:value()} | {stale, erl_cache:value()} | evicted | miss}.
 get(Key, WaitForRefresh) ->
-    Now = elibs_time:now_ms(os:timestamp()),
+    Now = now_ms(),
     Res = case ets:lookup(?ETS_CACHE_TABLE, Key) of
         [#cache_entry{validity=Validity, value=Value}] when Now < Validity ->
             gen_server:cast(?MODULE, {increase_stat, hit}),
@@ -82,7 +82,7 @@ get(Key, WaitForRefresh) ->
 -spec set(erl_cache:key(), erl_cache:value(), pos_integer(), non_neg_integer(),
           erl_cache:refresh_function(), boolean()) -> ok.
 set(Key, Value, ValidityDelta, EvictDelta, RefreshCb, WaitTillSet) ->
-    Now = elibs_time:now_ms(os:timestamp()),
+    Now = now_ms(),
     Entry = #cache_entry{
         key = Key,
         value = Value,
@@ -201,3 +201,8 @@ do_apply(F) when is_function(F) ->
 -spec update_stats(hit|miss|stale|evict, dict()) -> dict().
 update_stats(Stat, Stats) ->
     dict:update_counter(total_ops, 1, dict:update_counter(Stat, 1, Stats)).
+
+-spec now_ms() -> pos_integer().
+now_ms() ->
+    {Mega, Sec, Micro} = os:timestamp(),
+    Mega * 1000000000 + Sec * 1000 + Micro div 1000.
