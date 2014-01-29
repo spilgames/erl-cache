@@ -114,7 +114,7 @@ get_stats(Name) ->
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
 
--spec init([{name, erl_cache:name()}]) -> {ok, #state{}}.
+-spec init([erl_cache:name()]) -> {ok, #state{}}.
 init([Name]) ->
     CacheTid = ets:new(get_table_name(Name), [set, protected, named_table, {keypos,2},
                                               {read_concurrency, true}]),
@@ -171,8 +171,7 @@ evict_cache_entry(Ets, Key, Stats) ->
     ets:delete(Ets, Key),
     update_stats(evict, Stats).
 
--spec refresh(erl_cache:name(), #cache_entry{}, boolean()) ->
-    {ok, erl_cache:value()}.
+-spec refresh(erl_cache:name(), #cache_entry{}, WaitUntilDone::boolean()) -> {ok, erl_cache:value()}.
 refresh(Name, #cache_entry{key=Key, validity_delta=ValidityDelta, evict_delta=EvictDelta,
                            refresh_callback=Callback}, true) when Callback/=undefined ->
     NewVal = do_apply(Callback),
@@ -193,7 +192,7 @@ do_apply({M, F, A}) when is_atom(M), is_atom(F), is_list(A) ->
 do_apply(F) when is_function(F) ->
     F().
 
--spec update_stats(hit|miss|stale|evict, dict()) -> dict().
+-spec update_stats(hit|miss|stale|evict|set, dict()) -> dict().
 update_stats(Stat, Stats) ->
     dict:update_counter(total_ops, 1, dict:update_counter(Stat, 1, Stats)).
 
@@ -202,7 +201,7 @@ now_ms() ->
     {Mega, Sec, Micro} = os:timestamp(),
     Mega * 1000000000 + Sec * 1000 + Micro div 1000.
 
--spec get_table_name(erl_cache:name()) -> ets:tid().
+-spec get_table_name(erl_cache:name()) -> atom().
 get_table_name(Name) ->
     to_atom(atom_to_list(Name) ++ "_ets").
 
