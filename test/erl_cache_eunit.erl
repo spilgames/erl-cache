@@ -8,14 +8,17 @@
 -export([wait/1]).
 -endif.
 
-%TODO turn this app into an instantiator of cache_servers
 %TODO Documentation
 %TODO dialyzer
 
+-define(TEST_CACHE, s1).
+-define(TEST_CACHE2, s2).
+
 setup() ->
+    Old = application:get_env(erl_cache, cache_servers),
+    ok = application:set_env(erl_cache, cache_servers,
+                             [{?TEST_CACHE, [{wait_for_refresh, false}]}]),
     ok = application:start(erl_cache),
-    Old = application:get_env(erl_cache, wait_for_refresh),
-    ok = application:set_env(erl_cache, wait_for_refresh, false),
     [fun () -> application:stop(erl_cache) end,
      fun () -> case Old of
                     undefined -> application:unset_env(erl_cache, wait_for_refresh);
@@ -29,6 +32,7 @@ cleanup(Funs) ->
 
 get_set_evict_test_() ->
     {foreach, fun setup/0, fun cleanup/1, [
+            {"Start/Stop cache servers", fun start_stop_caches/0},
             {"Catch faulty options in get and set", fun wrong_opts_get_set/0},
             {"Default get, set, evict and stats", fun default_get_set_evict/0},
             {"Get and set with undefined refresh callback", fun refresh_undefined/0},
@@ -40,28 +44,38 @@ get_set_evict_test_() ->
 
 %% Test Sets
 
+start_stop_caches() ->
+    ?assertEqual({error, {invalid, cache_name}}, erl_cache:start_cache(?TEST_CACHE, [])),
+    ?assertMatch({error, {invalid, _}}, erl_cache:start_cache(?TEST_CACHE2, [{validity, some}])),
+    ?assertEqual(ok, erl_cache:start_cache(?TEST_CACHE2, [])),
+    ?assertEqual({error, {invalid, cache_name}}, erl_cache:start_cache(?TEST_CACHE2, [])),
+    ?assertEqual({error, {invalid, cache_name}}, erl_cache:stop_cache(no_known_cache)),
+    ?assertEqual(ok, erl_cache:stop_cache(?TEST_CACHE2)).
+
 wrong_opts_get_set() ->
-    ?assertEqual({error, {invalid, validity}}, erl_cache:set(key, value, [{validity, -1}])),
-    ?assertEqual({error, {invalid, evict}}, erl_cache:set(key, value, [{validity, 1}, {evict, 0}])),
+    ?assertEqual({error, {invalid, validity}}, set_in_cache(key, value, [{validity, -1}])),
+    ?assertEqual({error, {invalid, evict}}, set_in_cache(key, value, [{validity, 1}, {evict, 0}])),
     ?assertEqual({error, {invalid, wait_for_refresh}},
-                 erl_cache:get(key, [{wait_for_refresh, 1}])),
-    ?assertEqual({error, {invalid, wait_until_cached}},
-                 erl_cache:set(key, value, [{wait_until_cached, "true"}])),
+                 get_from_cache(key, [{wait_for_refresh, 1}])),
+    ?assertEqual({error, {invalid, wait_until_done}},
+                 set_in_cache(key, value, [{wait_until_done, "true"}])),
     ?assertEqual({error, {invalid, refresh_callback}},
-                 erl_cache:set(key, value, [{refresh_callback, myfun}])),
+                 set_in_cache(key, value, [{refresh_callback, myfun}])),
     ?assertEqual({error, {invalid, refresh_callback}},
-                 erl_cache:set(key, value, [{refresh_callback, {mymodule, myfun}}])).
+                 set_in_cache(key, value, [{refresh_callback, {mymodule, myfun}}])).
 
 default_get_set_evict() ->
-    ?assertEqual({error, not_found}, get_from_cache(test_key, [], 1)),
-    ?assertEqual(ok, set_in_cache(test_key, <<"test_value">>, [], 1)),
+    ?assertEqual({error, not_found}, get_from_cache(test_key, [])),
+    ?assertEqual(ok, set_in_cache(test_key, <<"test_value">>)),
     ?assertEqual({ok, <<"test_value">>}, get_from_cache(test_key, [], 1)),
-    ?assertEqual({ok, <<"test_value">>}, erl_cache:get(test_key)),
-    ?assertEqual(ok, erl_cache:set(test_key2, foo)),
-    timer:sleep(1),
-    ?assertEqual({ok, foo}, erl_cache:get(test_key2)),
+    ?assertEqual({ok, <<"test_value">>}, get_from_cache(test_key)),
+    ?assertEqual(ok, set_in_cache(test_key2, foo, [{wait_until_done, true}])),
+    ?assertEqual({ok, foo}, get_from_cache(test_key2)),
     ?assertEqual(ok, evict_from_cache(test_key)),
-    ?assertEqual({error, not_found}, get_from_cache(test_key, [], 1)).
+    ?assertEqual({error, {invalid, cache_name}}, erl_cache:evict(nowhere, test_key)),
+    ?assertEqual({error, not_found}, get_from_cache(test_key, [], 1)),
+    ?assertEqual(ok, evict_from_cache(test_key2, [{wait_until_done, true}])),
+    ?assertEqual({error, not_found}, get_from_cache(test_key2, [])).
 
 refresh_undefined() ->
     SetOpts = [{refresh_callback, undefined}, {validity, 50}, {evict, 300}],
@@ -106,19 +120,20 @@ refresh_stale_sync_closure() ->
     ?assertEqual({error, not_found}, get_from_cache(test_key, [], 350)).
 
 stats() ->
-    erl_cache:get(foo),
-    erl_cache:set(foo, bar, [{validity, 30}, {evict, 100}]),
-    erl_cache:set(foo2, bar, [{validity, 1}, {evict, 1}]),
-    erl_cache:set(foo3, bar, [{validity, 1}, {evict, 1}]),
+    get_from_cache(foo),
+    set_in_cache(foo, bar, [{validity, 30}, {evict, 100}]),
+    set_in_cache(foo2, bar, [{validity, 1}, {evict, 1}]),
+    set_in_cache(foo3, bar, [{validity, 1}, {evict, 1}]),
     get_from_cache(foo, [], 1),
     get_from_cache(foo, [], 1),
     get_from_cache(foo, [], 1),
     get_from_cache(foo, [], 50),
     get_from_cache(foo, [], 1),
-    erl_cache:evict(foo),
-    erl_cache:get(foo2),
+    evict_from_cache(foo),
+    get_from_cache(foo2),
     timer:sleep(100),
-    Stats = erl_cache_server:get_stats(),
+    Stats = stats_from_cache(),
+    ?assertEqual({error, {invalid, cache_name}}, erl_cache:get_stats(no_known_cache)),
     ?assertEqual(3, proplists:get_value(set, Stats)),
     ?assertEqual(11, proplists:get_value(total_ops, Stats)),
     ?assertEqual(3, proplists:get_value(hit, Stats)),
@@ -137,18 +152,35 @@ parse_transform() ->
 
 %% Internal functions
 
+set_in_cache(K, V) ->
+    apply(erl_cache, set, [?TEST_CACHE, K, V]).
+set_in_cache(K, V, Opts) ->
+    set_in_cache(K, V, Opts, 0).
+set_in_cache(K, V, Opts, 0) ->
+    apply(erl_cache, set, [?TEST_CACHE, K, V, Opts]);
 set_in_cache(K, V, Opts, SleepAfter) ->
-    apply(erl_cache, set, [K, V, Opts]),
+    apply(erl_cache, set, [?TEST_CACHE, K, V, Opts]),
     timer:sleep(SleepAfter).
 
+get_from_cache(K) ->
+    apply(erl_cache, get, [?TEST_CACHE, K]).
+get_from_cache(K, Opts) ->
+    get_from_cache(K, Opts, 0).
+get_from_cache(K, Opts, 0) ->
+    apply(erl_cache, get, [?TEST_CACHE, K, Opts]);
 get_from_cache(K, Opts, SleepBefore) ->
     timer:sleep(SleepBefore),
-    apply(erl_cache, get, [K, Opts]).
+    apply(erl_cache, get, [?TEST_CACHE, K, Opts]).
 
 evict_from_cache(K) ->
-    erl_cache:evict(K).
+    apply(erl_cache, evict, [?TEST_CACHE, K]).
+evict_from_cache(K, Opts) ->
+    apply(erl_cache, evict, [?TEST_CACHE, K, Opts]).
 
-?CACHE([{validity, 1000}, {evict, 100}, {wait_until_cached, true}]).
+stats_from_cache() ->
+    apply(erl_cache, get_stats, [?TEST_CACHE]).
+
+?CACHE(?TEST_CACHE, [{validity, 1000}, {evict, 100}, {wait_until_done, true}]).
 wait(Time) ->
     timer:sleep(Time),
     ok.
