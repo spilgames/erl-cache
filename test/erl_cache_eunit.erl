@@ -8,8 +8,7 @@
 -export([wait/1]).
 -endif.
 
-%TODO Documentation
-%TODO dialyzer
+%TODO Overview.edoc with a small graph
 %TODO Makefile
 
 -define(TEST_CACHE, s1).
@@ -54,8 +53,9 @@ start_stop_caches() ->
     ?assertEqual(ok, erl_cache:stop_cache(?TEST_CACHE2)).
 
 wrong_opts_get_set() ->
-    ?assertEqual({error, {invalid, validity}}, set_in_cache(key, value, [{validity, -1}])),
-    ?assertEqual({error, {invalid, evict}}, set_in_cache(key, value, [{validity, 1}, {evict, 0}])),
+    ?assertEqual({error, {invalid, evict}}, set_in_cache(key, value, [{evict, -1}])),
+    ?assertEqual({error, {invalid, validity}},
+                 set_in_cache(key, value, [{evict, 0}, {validity, 0}])),
     ?assertEqual({error, {invalid, wait_for_refresh}},
                  get_from_cache(key, [{wait_for_refresh, 1}])),
     ?assertEqual({error, {invalid, wait_until_done}},

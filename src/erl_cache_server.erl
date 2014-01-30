@@ -4,9 +4,9 @@
 
 -include("erl_cache.hrl").
 
-%% ------------------------------------------------------------------
+%% ==================================================================
 %% API Function Exports
-%% ------------------------------------------------------------------
+%% ==================================================================
 
 -export([
     start_link/1,
@@ -16,9 +16,9 @@
     get_stats/1
 ]).
 
-%% ------------------------------------------------------------------
+%% ==================================================================
 %% gen_server Function Exports
-%% ------------------------------------------------------------------
+%% ==================================================================
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -30,27 +30,25 @@
 }).
 
 -record(cache_entry, {
-    key::term(),
-    value::term(),
+    key::erl_cache:key(),
+    value::erl_cache:value(),
     created::pos_integer(),
-    validity::pos_integer(),
-    evict::pos_integer(),
+    validity::erl_cache:validity(),
+    evict::erl_cache:evict(),
     validity_delta::pos_integer(),
     evict_delta::pos_integer(),
-    refresh_callback::erl_cache:refresh_function()
+    refresh_callback::erl_cache:refresh_callback()
 }).
 
-%% ------------------------------------------------------------------
+%% ==================================================================
 %% API Function Definitions
-%% ------------------------------------------------------------------
+%% ==================================================================
 
-%% @doc Starts the server
 -spec start_link(erl_cache:name()) -> {ok, pid()}.
-%% @end
 start_link(Name) ->
     gen_server:start_link({local, Name}, ?MODULE, [Name], []).
 
--spec get(erl_cache:name(), erl_cache:key(), boolean()) ->
+-spec get(erl_cache:name(), erl_cache:key(), erl_cache:wait_for_refresh()) ->
     {ok, erl_cache:value()} | {error, not_found}.
 get(Name, Key, WaitForRefresh) ->
     Now = now_ms(),
@@ -75,7 +73,7 @@ get(Name, Key, WaitForRefresh) ->
     end.
 
 -spec set(erl_cache:name(), erl_cache:key(), erl_cache:value(), pos_integer(), non_neg_integer(),
-          erl_cache:refresh_function(), boolean()) -> ok.
+          erl_cache:refresh_callback(), erl_cache:wait_until_done()) -> ok.
 set(Name, Key, Value, ValidityDelta, EvictDelta, RefreshCb, WaitTillSet) ->
     Now = now_ms(),
     Entry = #cache_entry{
@@ -93,16 +91,13 @@ set(Name, Key, Value, ValidityDelta, EvictDelta, RefreshCb, WaitTillSet) ->
         true -> ok = gen_server:call(Name, {set, Entry})
     end.
 
--spec evict(erl_cache:name(), erl_cache:key(), boolean()) -> ok.
+-spec evict(erl_cache:name(), erl_cache:key(), erl_cache:wait_until_done()) -> ok.
 evict(Name, Key, false) ->
     gen_server:cast(Name, {evict, Key});
 evict(Name, Key, true) ->
     gen_server:call(Name, {evict, Key}).
 
-%% @doc Retrieve stats for cache server usage. Great for testing and
-%% to ensure nothing is broken.
 -spec get_stats(erl_cache:name()) -> erl_cache:cache_stats().
-%% @end
 get_stats(Name) ->
     Info = ets:info(get_table_name(Name)),
     Memory = proplists:get_value(memory, Info, 0),
@@ -110,9 +105,9 @@ get_stats(Name) ->
     ServerStats = gen_server:call(Name, get_stats),
     [{entries, Entries}, {memory, Memory}] ++ ServerStats.
 
-%% ------------------------------------------------------------------
+%% ==================================================================
 %% gen_server Function Definitions
-%% ------------------------------------------------------------------
+%% ==================================================================
 
 -spec init([erl_cache:name()]) -> {ok, #state{}}.
 init([Name]) ->
@@ -171,7 +166,8 @@ evict_cache_entry(Ets, Key, Stats) ->
     ets:delete(Ets, Key),
     update_stats(evict, Stats).
 
--spec refresh(erl_cache:name(), #cache_entry{}, WaitUntilDone::boolean()) -> {ok, erl_cache:value()}.
+-spec refresh(erl_cache:name(), #cache_entry{}, WaitUntilDone::erl_cache:wait_until_done()) ->
+    {ok, erl_cache:value()}.
 refresh(Name, #cache_entry{key=Key, validity_delta=ValidityDelta, evict_delta=EvictDelta,
                            refresh_callback=Callback}, true) when Callback/=undefined ->
     NewVal = do_apply(Callback),
