@@ -9,7 +9,6 @@
 -endif.
 
 %TODO Overview.edoc with a small graph
-%TODO Makefile
 
 -define(TEST_CACHE, s1).
 -define(TEST_CACHE2, s2).
@@ -18,7 +17,7 @@ setup() ->
     Old = application:get_env(erl_cache, cache_servers),
     ok = application:set_env(erl_cache, cache_servers,
                              [{?TEST_CACHE, [{wait_for_refresh, false}]}]),
-    ok = application:start(erl_cache),
+    ok = erl_cache:start(),
     [fun () -> application:stop(erl_cache) end,
      fun () -> case Old of
                     undefined -> application:unset_env(erl_cache, wait_for_refresh);
