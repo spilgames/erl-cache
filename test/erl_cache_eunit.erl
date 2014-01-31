@@ -8,8 +8,6 @@
 -export([wait/1]).
 -endif.
 
-%TODO Overview.edoc with a small graph
-
 -define(TEST_CACHE, s1).
 -define(TEST_CACHE2, s2).
 

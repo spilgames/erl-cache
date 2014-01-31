@@ -20,10 +20,11 @@ test: compile
 	rebar skip_deps=true eunit
 
 docs: docsclean
-	rebar skip_deps=true doc
+	ln -s . doc/doc
+	rebar skip_deps=true doc -vvv
 
 docsclean:
-	rm -f doc/*.html doc/*.css doc/erlang.png doc/edoc-info
+	rm -f doc/*.html doc/*.css doc/erlang.png doc/edoc-info doc/doc
 
 go:
 	erl -name erl_cache -pa deps/*/ebin -pa ebin/ -s erl_cache start ${EXTRA_ARGS}
