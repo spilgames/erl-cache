@@ -3,6 +3,7 @@
 -behaviour(gen_server).
 
 -include("erl_cache.hrl").
+-include("logging.hrl").
 
 %% ==================================================================
 %% API Function Exports

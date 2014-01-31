@@ -1,0 +1,59 @@
+@author Enrique Paz <enrique.pazperez@spilgames.com>
+
+@author Rolph de Ruiter <rolph.deruiter@spilgames.com>
+
+@copyright 2014 Spilgames
+
+@title A generic in-node caching solution
+
+@doc
+== Purpose ==
+
+This application is meant to facilitate the process of caching function calls within an erlang node.
+Do not expect a complex distributed application here. There are far more complex products out there
+intended to act that way. Istead, erl_cache intends to be a simple solution that unifies common
+caching patterns within an erlang node which you probably have implemented a thousand times in one
+thousand slightly different ways.
+
+== Functional Description ==
+
+The erl_cache module acts as the main application interface, allowing you to start/stop independent
+cache servers and interact with them.
+
+Each entry in a cache can be either valid, stale or evictable. The difference between stale and
+evictable is that, when a stale entry is requested, and in case a refresh callback was indicated
+when first setting it, it will be refreshed and so back into valid state. Evictable entries will be
+removed from cache when hit and never returned to the client.
+
+From a user point of view, those independent cache servers provide independent namespacing. Each
+cache server uses its own set of default options and can crash without affecting any of the others.
+
+From a system point of view, erl_cache acts as a server of caches, holding the cache names and their
+associated defaults in a protected ets table. erl_cache is also responsible for option validation in
+every call.
+
+<img src="images/erl_cache.jpeg"/>
+
+erl_cache_server holds the actual cache in its own protected ets table and implements the logic
+behind the refreshing stale entries when hit and the eviction of old entries
+
+This application accepts only one configuration option: cache_servers. This is a list of 2-tuples
+indicating the name and the default options for each one of the caches the application should bring
+up at startup. The format is the same used in `erl_cache:start_cache/2'. i.e.
+
+```
+[{erl_cache, [
+    {cache_servers, [{my_cache_server, [{wait_until_done, true}, {validity, 5000}, {evict, 3000}]}]}
+]}].
+'''
+
+For ease of use, this application provides the `?CACHE' macro. This macro can be placed on top of
+any public function. Every time the function is invoked, erl_cache will try to retrieve the suitable
+return value from cache and, in case it's not there, perform the regular function call and cache the
+result. Here you can see an example of how to use the macro to avoid sums being performed everytime
+sum/2 is called:
+```
+?CACHE(my_cache_namespace, [{validity, 10000}, {evict, 2000}}]).
+sum(A, B) ->
+    A + B.
+'''

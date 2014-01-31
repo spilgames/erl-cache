@@ -13,7 +13,6 @@ quick:
 	rebar skip_deps=true compile
 	rebar skip_deps=true xref
 
-
 clean:
 	rebar clean
 
@@ -24,7 +23,7 @@ docs: docsclean
 	rebar skip_deps=true doc
 
 docsclean:
-	rm -f doc/*.html doc/*.css doc/*.png doc/edoc-info
+	rm -f doc/*.html doc/*.css doc/erlang.png doc/edoc-info
 
 go:
 	erl -name erl_cache -pa deps/*/ebin -pa ebin/ -s erl_cache start ${EXTRA_ARGS}
