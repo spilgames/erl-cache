@@ -11,6 +11,7 @@
 -export([
     start_link/1,
     get/3,
+    get_table_name/1,
     set/7,
     evict/3,
     get_stats/1
@@ -105,6 +106,12 @@ get_stats(Name) ->
     ServerStats = gen_server:call(Name, get_stats),
     [{entries, Entries}, {memory, Memory}] ++ ServerStats.
 
+
+%% @private
+-spec get_table_name(erl_cache:name()) -> atom().
+get_table_name(Name) ->
+    to_atom(atom_to_list(Name) ++ "_ets").
+
 %% ==================================================================
 %% gen_server Function Definitions
 %% ==================================================================
@@ -196,10 +203,6 @@ update_stats(Stat, Stats) ->
 now_ms() ->
     {Mega, Sec, Micro} = os:timestamp(),
     Mega * 1000000000 + Sec * 1000 + Micro div 1000.
-
--spec get_table_name(erl_cache:name()) -> atom().
-get_table_name(Name) ->
-    to_atom(atom_to_list(Name) ++ "_ets").
 
 -spec to_atom(string()) -> atom().
 to_atom(Str) ->

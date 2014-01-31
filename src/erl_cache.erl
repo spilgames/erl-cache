@@ -288,7 +288,8 @@ default(wait_until_done, Defaults) ->
 
 -spec is_available_name(name()) -> boolean().
 is_available_name(Name) ->
-    ets:lookup(?CACHE_MAP, Name)==[] andalso erlang:whereis(Name)==undefined.
+    ets:lookup(?CACHE_MAP, Name)==[] andalso erlang:whereis(Name)==undefined
+        andalso not lists:member(erl_cache_server:get_table_name(Name), ets:all()).
 
 -spec is_cache_server(name()) -> boolean().
 is_cache_server(Name) ->
