@@ -21,7 +21,7 @@ test: compile
 
 docs: docsclean
 	ln -s . doc/doc
-	rebar skip_deps=true doc -vvv
+	rebar skip_deps=true doc
 
 docsclean:
 	rm -f doc/*.html doc/*.css doc/erlang.png doc/edoc-info doc/doc
