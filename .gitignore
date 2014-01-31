@@ -5,3 +5,7 @@ deps/
 .dialyzer_plt
 erl_crash.dump
 *.beam
+DOC/*.html
+DOC/*.png
+DOC/*.css
+DOC/edoc-info

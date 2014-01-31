@@ -29,12 +29,11 @@ start_link() ->
 %% @doc
 -spec init(list()) ->
     {ok, {
-            {one_for_one, 5, 10},
+            {one_for_all, 5, 10},
             [{atom(), {atom(), start_link, [term()]}, permanent, 5000, worker, [atom()]}]
          }
     }.
 %% @end
 init([]) ->
-    {ok, { {one_for_one, 5, 10}, [
-                                  ?CHILD(erl_cache_server, worker, [])
-    ]} }.
+    {ok, {{one_for_all, 5, 10}, [?CHILD(erl_cache_server_sup, supervisor, []),
+                                 ?CHILD(erl_cache, worker, [])]}}.
