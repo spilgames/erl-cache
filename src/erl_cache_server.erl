@@ -11,7 +11,7 @@
 -export([
     start_link/1,
     get/3,
-    get_table_name/1,
+    is_valid_name/1,
     set/7,
     evict/3,
     get_stats/1
@@ -106,22 +106,22 @@ get_stats(Name) ->
     ServerStats = gen_server:call(Name, get_stats),
     [{entries, Entries}, {memory, Memory}] ++ ServerStats.
 
-
-%% @private
--spec get_table_name(erl_cache:name()) -> atom().
-get_table_name(Name) ->
-    to_atom(atom_to_list(Name) ++ "_ets").
+-spec is_valid_name(erl_cache:name()) -> boolean().
+is_valid_name(Name) ->
+    not lists:member(get_table_name(Name), ets:all()).
 
 %% ==================================================================
 %% gen_server Function Definitions
 %% ==================================================================
 
+%% @private
 -spec init([erl_cache:name()]) -> {ok, #state{}}.
 init([Name]) ->
     CacheTid = ets:new(get_table_name(Name), [set, protected, named_table, {keypos,2},
                                               {read_concurrency, true}]),
     {ok, #state{name=Name, cache=CacheTid, stats=dict:new()}}.
 
+%% @private
 -spec handle_call(term(), term(), #state{}) ->
     {reply, Data::any(), #state{}}.
 handle_call({set, #cache_entry{}=Entry}, _From, #state{cache=Ets, stats=StatsDict} = State) ->
@@ -135,6 +135,7 @@ handle_call(get_stats, _From, #state{stats=Stats} = State) ->
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
+%% @private
 -spec handle_cast(any(), #state{}) -> {noreply, #state{}}.
 handle_cast({increase_stat, Stat}, #state{stats=Stats} = State) ->
     {noreply, State#state{stats=update_stats(Stat, Stats)}};
@@ -147,14 +148,17 @@ handle_cast({evict, Key}, #state{cache=Ets, stats=StatsDict} = State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
+%% @private
 -spec handle_info(any(), #state{}) -> {noreply, #state{}}.
 handle_info(_Info, State) ->
     {noreply, State}.
 
+%% @private
 -spec terminate(any(), #state{}) -> any().
 terminate(_Reason, _State) ->
     ok.
 
+%% @private
 -spec code_change(any(), #state{}, any()) -> {ok, #state{}}.
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -163,16 +167,19 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Function Definitions
 %% ====================================================================
 
+%% @private
 -spec set_cache_entry(ets:tid(), #cache_entry{}, dict()) -> dict().
 set_cache_entry(Ets, Entry, Stats) ->
     ets:insert(Ets, Entry),
     update_stats(set, Stats).
 
+%% @private
 -spec evict_cache_entry(ets:tid(), #cache_entry{}, dict()) -> dict().
 evict_cache_entry(Ets, Key, Stats) ->
     ets:delete(Ets, Key),
     update_stats(evict, Stats).
 
+%% @private
 -spec refresh(erl_cache:name(), #cache_entry{}, WaitUntilDone::erl_cache:wait_until_done()) ->
     {ok, erl_cache:value()}.
 refresh(Name, #cache_entry{key=Key, validity_delta=ValidityDelta, evict_delta=EvictDelta,
@@ -189,21 +196,30 @@ refresh(Name, #cache_entry{key=Key, value=Value, validity_delta=ValidityDelta, e
     _ = spawn(F),
     {ok, Value}.
 
+%% @private
 -spec do_apply(mfa() | function()) -> term().
 do_apply({M, F, A}) when is_atom(M), is_atom(F), is_list(A) ->
     apply(M, F, A);
 do_apply(F) when is_function(F) ->
     F().
 
+%% @private
 -spec update_stats(hit|miss|stale|evict|set, dict()) -> dict().
 update_stats(Stat, Stats) ->
     dict:update_counter(total_ops, 1, dict:update_counter(Stat, 1, Stats)).
 
+%% @private
 -spec now_ms() -> pos_integer().
 now_ms() ->
     {Mega, Sec, Micro} = os:timestamp(),
     Mega * 1000000000 + Sec * 1000 + Micro div 1000.
 
+%% @private
+-spec get_table_name(erl_cache:name()) -> atom().
+get_table_name(Name) ->
+    to_atom(atom_to_list(Name) ++ "_ets").
+
+%% @private
 -spec to_atom(string()) -> atom().
 to_atom(Str) ->
     try list_to_existing_atom(Str) catch error:badarg -> list_to_atom(Str) end.

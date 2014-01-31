@@ -12,8 +12,9 @@
         get/2, get/3,
         get_stats/1,
         set/3, set/4,
-        start_link/0, start_cache/2,
-        stop_cache/1,
+        start/0,
+        start_link/0,
+        stop_cache/1, start_cache/2,
         evict/2, evict/3
     ]).
 
@@ -72,10 +73,14 @@
 %% API
 %% ====================================================================
 
-%% @doc Starts this server, which will act as a cache server manager.
-%% To be called by erl_cache_sup
--spec start_link() -> {ok, pid()}.
+%% @doc Convenience method to start the erl_cache application
+-spec start() -> ok.
 %% @end
+start() ->
+    ok = application:start(erl_cache).
+
+%% @private
+-spec start_link() -> {ok, pid()}.
 start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
@@ -168,6 +173,7 @@ evict(Name, Key, Opts) ->
 %% gen_server callbacks
 %% ====================================================================
 
+%% @private
 -spec init([]) -> {ok, #state{}}.
 init([]) ->
     Tid = ets:new(?CACHE_MAP, [set, protected, named_table, {read_concurrency, true}]),
@@ -179,6 +185,7 @@ init([]) ->
     {ok, #state{cache_map=Tid}}.
 
 
+%% @private
 -spec handle_call(term(), term(), #state{}) ->
     {reply, Data::any(), #state{}}.
 handle_call({start_cache, Name, Defaults}, _From, #state{}=State) ->
@@ -196,6 +203,7 @@ handle_call({stop_cache, Name}, _From, #state{}=State) ->
     end,
     {reply, Res, State}.
 
+%% @private
 -spec do_start_cache(name(), cache_opts()) -> ok | {error, invalid_opt_error()}.
 do_start_cache(Name, Opts) ->
     case is_available_name(Name) of
@@ -212,18 +220,22 @@ do_start_cache(Name, Opts) ->
             {error, {invalid, cache_name}}
     end.
 
+%% @private
 -spec handle_cast(any(), #state{}) -> {noreply, #state{}}.
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
+%% @private
 -spec handle_info(any(), #state{}) -> {noreply, #state{}}.
 handle_info(_Info, State) ->
     {noreply, State}.
 
+%% @private
 -spec terminate(any(), #state{}) -> any().
 terminate(_Reason, _State) ->
     ok.
 
+%% @private
 -spec code_change(any(), #state{}, any()) -> {ok, #state{}}.
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -232,6 +244,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %% ====================================================================
 
+%% @private
 -spec validate_opts(cache_opts(), cache_opts() | undefined) ->
     {ok, cache_opts()} | {error, invalid_opt_error()}.
 validate_opts(_, undefined) ->
@@ -246,6 +259,7 @@ validate_opts(Opts, Defaults) ->
         [{K, {invalid, K}=E} | _] -> {error, E}
     end.
 
+%% @private
 -spec validate_value(config_key(), [cache_opts()], [cache_opts()]) ->
     term() | {invalid, config_key()}.
 validate_value(Key, Opts, Defaults) when Key==refresh_callback ->
@@ -274,6 +288,7 @@ validate_value(Key, Opts, Defaults) when Key==wait_for_refresh; Key==wait_until_
         _ -> {invalid, Key}
     end.
 
+%% @private
 -spec default(config_key(), cache_opts()) -> term().
 default(validity, Defaults) ->
     proplists:get_value(validity, Defaults, ?DEFAULT_VALIDITY);
@@ -286,15 +301,18 @@ default(refresh_callback, Defaults) ->
 default(wait_until_done, Defaults) ->
     proplists:get_value(wait_until_done, Defaults, ?DEFAULT_WAIT_UNTIL_CACHED).
 
+%% @private
 -spec is_available_name(name()) -> boolean().
 is_available_name(Name) ->
     ets:lookup(?CACHE_MAP, Name)==[] andalso erlang:whereis(Name)==undefined
-        andalso not lists:member(erl_cache_server:get_table_name(Name), ets:all()).
+        andalso erl_cache_server:is_valid_name(Name).
 
+%% @private
 -spec is_cache_server(name()) -> boolean().
 is_cache_server(Name) ->
     ets:lookup(?CACHE_MAP, Name)/=[].
 
+%% @private
 -spec get_name_defaults(name()) -> cache_opts() | undefined.
 get_name_defaults(Name) ->
     case ets:lookup(?CACHE_MAP, Name) of
