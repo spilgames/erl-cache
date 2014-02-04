@@ -26,7 +26,7 @@ From a system point of view, erl_cache acts as a server of caches, holding the c
 associated defaults in a protected ets table. erl_cache is also responsible for option validation in
 every call.
 
-<img src="doc/images/erl_cache.png" style="max-height: 400px;"/>
+<img src="doc/images/erl_cache.png" style="max-height: 500px;"/>
 
 erl_cache_server holds the actual cache in its own protected ets table and implements the logic
 behind the refreshing stale entries when hit and the eviction of old entries
