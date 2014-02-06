@@ -4,9 +4,9 @@
 -include("erl_cache.hrl").
 -include_lib("decorator_pt/include/decorator_pt.hrl").
 
--ifdef(TEST).
--export([wait/1]).
--endif.
+%-ifdef(TEST).
+%-export([wait/1]).
+%-endif.
 
 -define(TEST_CACHE, s1).
 -define(TEST_CACHE2, s2).
@@ -143,10 +143,14 @@ stats() ->
     ?assertMatch(N when is_integer(N) andalso N>0, proplists:get_value(memory, Stats)).
 
 parse_transform() ->
-    {Time1, ok} = timer:tc(?MODULE, wait, [1000]),
-    {Time2, ok} = timer:tc(?MODULE, wait, [1000]),
+    %{Time1, ok} = timer:tc(?MODULE, wait, [1000]),
+    {Time1, ok} = timer:tc(fun  () -> wait(1000) end),
+    {Time2, ok} = timer:tc(fun  () -> wait(1000) end),
+    timer:sleep(1000),
+    {Time3, ok} = timer:tc(fun  () -> wait(1000) end),
     ?assertMatch(N when N>1000000, Time1),
-    ?assertMatch(N when N<1000000, Time2).
+    ?assertMatch(N when N<1000000, Time2),
+    ?assertMatch(N when N>1000000, Time3).
 
 %% Internal functions
 
@@ -178,7 +182,7 @@ evict_from_cache(K, Opts) ->
 stats_from_cache() ->
     apply(erl_cache, get_stats, [?TEST_CACHE]).
 
-?CACHE(?TEST_CACHE, [{validity, 1000}, {evict, 100}, {wait_until_done, true}]).
+?CACHE(?TEST_CACHE, [{validity, 1000}, {evict, 1000}, {wait_until_done, true}, {wait_for_refresh, true}]).
 wait(Time) ->
     timer:sleep(Time),
     ok.
