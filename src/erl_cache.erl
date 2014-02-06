@@ -25,15 +25,18 @@
 
 -type config_key()::validity | evict | refresh_callback | wait_for_refresh | wait_until_done.
 
--type validity() :: pos_integer().  %% How long an entry shold be considered valid (in ms)
+-type validity() :: pos_integer().  %% How long an entry shold be considered valid (in ms).
+                                    %% Defaults to 300000
 -type evict() :: non_neg_integer(). %% How long an entry shold be considered stale (non valid byt
-                                    %% not yet to be evicted, in ms)
+                                    %% not yet to be evicted, in ms). Defaults to 60000
 -type refresh_callback() :: function() | mfa() | undefined. %% How to refresh a stale entry when
-                                                            %% requested via get
+                                                            %% requested via get. Defaults to
+                                                            %% undefined
 -type wait_for_refresh() :: boolean(). %% Whether a get call hiting a stale value should wait for
                                        %% the refreshed value or return immediatly with a not_found
+                                       %% Defaults to true
 -type wait_until_done() :: boolean().  %% Whether set and evict operations should behave
-                                       %% synchronously or asynchronously
+                                       %% synchronously or asynchronously. Defaults to false
 
 -type invalid_opt_error()::{invalid, config_key() | cache_name}.
 
@@ -300,7 +303,7 @@ default(wait_for_refresh, Defaults) ->
 default(refresh_callback, Defaults) ->
     proplists:get_value(refresh_callback, Defaults, ?DEFAULT_REFRESH_CALLBACK);
 default(wait_until_done, Defaults) ->
-    proplists:get_value(wait_until_done, Defaults, ?DEFAULT_WAIT_UNTIL_CACHED).
+    proplists:get_value(wait_until_done, Defaults, ?DEFAULT_WAIT_UNTIL_DONE).
 
 %% @private
 -spec is_available_name(name()) -> boolean().

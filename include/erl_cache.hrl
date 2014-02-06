@@ -3,7 +3,7 @@
 %%============================================================================
 
 -define(DEFAULT_WAIT_FOR_REFRESH, true).
--define(DEFAULT_WAIT_UNTIL_CACHED, false).
+-define(DEFAULT_WAIT_UNTIL_DONE, false).
 -define(DEFAULT_VALIDITY, 300000).
 -define(DEFAULT_EVICT, 60000).
 -define(DEFAULT_REFRESH_CALLBACK, undefined).

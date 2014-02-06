@@ -181,7 +181,7 @@ evict_cache_entry(Ets, Key, Stats) ->
     update_stats(evict, Stats).
 
 %% @private
--spec refresh(erl_cache:name(), #cache_entry{}, WaitUntilDone::erl_cache:wait_until_done()) ->
+-spec refresh(erl_cache:name(), #cache_entry{}, erl_cache:wait_for_refresh()) ->
     {ok, erl_cache:value()}.
 refresh(Name, #cache_entry{key=Key, validity_delta=ValidityDelta, evict_delta=EvictDelta,
                            refresh_callback=Callback}, true) when Callback/=undefined ->

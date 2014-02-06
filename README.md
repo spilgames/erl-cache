@@ -43,6 +43,14 @@ up at startup. The format is the same used in <code>erl_cache:start_cache/2</cod
 ]}].
 </code>
 
+The default config options unless otherwise specified are:
+
+<li>wait_for_refresh: true</li>
+<li>wait_until_done: false</li>
+<li>validity: 300000</li>
+<li>evict: 60000</li>
+<li>refresh_callback: undefined</li>
+
 <h3> The ?CACHE macro </h3>
 
 For ease of use, this application provides the <code>?CACHE</code> macro. This macro can be placed on top of
