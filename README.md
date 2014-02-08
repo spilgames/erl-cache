@@ -31,6 +31,50 @@ every call.
 erl_cache_server holds the actual cache in its own protected ets table and implements the logic
 behind the refreshing stale entries when hit and the eviction of old entries
 
+<h3> Status of an entry</h3>
+
+Every cached entry can be in one of the following three states:
+<li> Valid: any request of that key will result in a hit and the stored value will be returned. An
+entry is in the valid state as long as indicated by the <code>validity</code> option.</li>
+<li> Stale: the entry <code>validity</code> period has passed but  <code>validity + evict</code>
+period hasn't. Any request for a key in such state will be considered a stale hit and never a miss.
+In case a <code>refresh_callback</code> was specified for the entry when set, the value will be
+refreshed and set back to valid state. Depending on whether the <code>wait_for_refresh</code>, the
+client will be served the old value or the refreshed one.</li>
+<li> Evict: the entry is no longer valid and won't be refreshed. An entry in evict state will never
+be returned to the user. Eventually, entries in evict state are removed from the cache.</li>
+
+<h3> Caching Error Values</h3>
+
+When caching a function call without checking the return value, or when using the ?CACHE macro, the
+user might transparently be caching an error result instead of a valid one. When dealing with long
+validity times, this could lead to an esporadic error in your cached call to propagate consistently
+to the upper layer for a long time.
+
+Not caching error values at all is also a questionable practice. Think of an overload situation,
+when your cached call can't handle the load and returns an error. By not caching that error at all,
+the already overloaded application is being hit by more traffic and the overload situation is
+getting worse.
+
+Since there is no silver bullet, but seeming clear that error values are to be delt with special
+care, erl_cache provides <code>is_error_callback</code> and <code>error_validity</code>. By default
+this application considers the atom <code>error</code> and tuples <code>{error, _}</code> to be
+errors. The default validity for such values is a fifth of the default validity for a normal value.
+
+Since refreshing an error will produce a rather unpredictable result, error entries never enter the
+stale state: either they are valid or to be evicted.
+
+<h3> Eviction of expired entries</h3>
+
+It's important to know that this application works with a lazy eviction strategy. This means entries
+are marked to be evicted but still kept in the cache. Once an entry is marked to be evicted, from
+a user perspective it'slike it's really not there, since it's impossible to retrieve it or refresh
+it without explicitely setting it again.
+
+Once every <code>evict_interval</code>, the cache is scanned for entries to be evicted and those
+are erased from the cache. Only at that point the evict stats are updated and the memory used by
+cuch entries is freed.
+
 <h3> Configuration </h3>
 
 This application accepts only one configuration option: cache_servers. This is a list of 2-tuples
@@ -48,9 +92,11 @@ The default config options unless otherwise specified are:
 <li>wait_for_refresh: true</li>
 <li>wait_until_done: false</li>
 <li>validity: 300000</li>
+<li>error_validity: 60000</li>
 <li>evict: 60000</li>
 <li>evict_interval: ServerLevelEvict + ServerLevelValidity</li>
 <li>refresh_callback: undefined</li>
+<li>is_error_callback: <code>fun (error) -> true; ({error, _}) -> true; (_) -> false end</code></li>
 
 Since the evict_interval option can only be applied at cache server start up time, it
 should be set carefully. This option controls how often entries to be evicted will be deleted from

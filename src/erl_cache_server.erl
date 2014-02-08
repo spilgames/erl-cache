@@ -13,7 +13,7 @@
     start_link/2,
     get/3,
     is_valid_name/1,
-    set/7,
+    set/9,
     evict/3,
     get_stats/1
 ]).
@@ -37,11 +37,13 @@
     key::erl_cache:key(),
     value::erl_cache:value(),
     created::pos_integer(),
-    validity::erl_cache:validity(),
-    evict::erl_cache:evict(),
-    validity_delta::pos_integer(),
-    evict_delta::pos_integer(),
-    refresh_callback::erl_cache:refresh_callback()
+    validity::pos_integer(),
+    evict::pos_integer(),
+    validity_delta::erl_cache:validity(),
+    error_validity_delta::erl_cache:error_validity(),
+    evict_delta::erl_cache:evict(),
+    refresh_callback::erl_cache:refresh_callback(),
+    is_error_callback::erl_cache:is_error_callback()
 }).
 
 %% ==================================================================
@@ -76,18 +78,26 @@ get(Name, Key, WaitForRefresh) ->
     end.
 
 -spec set(erl_cache:name(), erl_cache:key(), erl_cache:value(), pos_integer(), non_neg_integer(),
-          erl_cache:refresh_callback(), erl_cache:wait_until_done()) -> ok.
-set(Name, Key, Value, ValidityDelta, EvictDelta, RefreshCb, WaitTillSet) ->
+          erl_cache:refresh_callback(), erl_cache:wait_until_done(), erl_cache:error_validity(),
+          erl_cahe:is_error_callback()) -> ok.
+set(Name, Key, Value, ValidityDelta, EvictDelta,
+    RefreshCb, WaitTillSet, ErrorValidityDelta, IsErrorCb) ->
     Now = now_ms(),
+    {Validity, Evict} = case is_error_value(IsErrorCb, Value) of
+        false -> {Now + ValidityDelta, Now + ValidityDelta + EvictDelta};
+        true -> {Now + ErrorValidityDelta, Now + ErrorValidityDelta}
+    end,
     Entry = #cache_entry{
         key = Key,
         value = Value,
         created = Now,
-        validity = Now + ValidityDelta,
-        evict = Now + ValidityDelta + EvictDelta,
+        validity = Validity,
+        error_validity_delta = ErrorValidityDelta,
+        evict = Evict,
         validity_delta = ValidityDelta,
         evict_delta = EvictDelta,
-        refresh_callback = RefreshCb
+        refresh_callback = RefreshCb,
+        is_error_callback = IsErrorCb
     },
     case WaitTillSet of
         false -> ok = gen_server:cast(Name, {set, Entry});
@@ -193,15 +203,20 @@ evict_cache_entry(Ets, Key, Stats) ->
 -spec refresh(erl_cache:name(), #cache_entry{}, erl_cache:wait_for_refresh()) ->
     {ok, erl_cache:value()}.
 refresh(Name, #cache_entry{key=Key, validity_delta=ValidityDelta, evict_delta=EvictDelta,
-                           refresh_callback=Callback}, true) when Callback/=undefined ->
+                           error_validity_delta=ErrorValidityDelta, refresh_callback=Callback,
+                           is_error_callback=IsErrorCb}, true) when Callback/=undefined ->
     NewVal = do_apply(Callback),
-    ok = set(Name, Key, NewVal, ValidityDelta, EvictDelta, Callback, true),
+    ok = set(Name, Key, NewVal, ValidityDelta, EvictDelta,
+             Callback, true, ErrorValidityDelta, IsErrorCb),
     {ok, NewVal};
+
 refresh(Name, #cache_entry{key=Key, value=Value, validity_delta=ValidityDelta, evict_delta=EvictDelta,
-                           refresh_callback=Callback}, false) when Callback/=undefined ->
+                           error_validity_delta=ErrorValidityDelta, refresh_callback=Callback,
+                           is_error_callback=IsErrorCb}, false) when Callback/=undefined ->
     F = fun () ->
             NewVal = do_apply(Callback),
-            set(Name, Key, NewVal, ValidityDelta, EvictDelta, Callback, false)
+            set(Name, Key, NewVal, ValidityDelta, EvictDelta,
+                Callback, false, ErrorValidityDelta, IsErrorCb)
     end,
     _ = spawn(F),
     {ok, Value}.
@@ -212,6 +227,15 @@ do_apply({M, F, A}) when is_atom(M), is_atom(F), is_list(A) ->
     apply(M, F, A);
 do_apply(F) when is_function(F) ->
     F().
+
+%% @private
+-spec is_error_value(erl_cache:is_error_callback(), erl_cache:value()) -> boolean().
+is_error_value(undefined, _) ->
+    true;
+is_error_value({M, F, A}, Value) ->
+    apply(M, F, [Value|A]);
+is_error_value(F, Value) when is_function(F) ->
+    F(Value).
 
 %% @private
 -spec update_stats(hit|miss|stale|evict|set, dict()) -> dict().

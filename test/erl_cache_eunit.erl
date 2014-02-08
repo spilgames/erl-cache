@@ -4,9 +4,9 @@
 -include("erl_cache.hrl").
 -include_lib("decorator_pt/include/decorator_pt.hrl").
 
-%-ifdef(TEST).
-%-export([wait/1]).
-%-endif.
+-ifdef(TEST).
+-export([is_error/1]).
+-endif.
 
 -define(TEST_CACHE, s1).
 -define(TEST_CACHE2, s2).
@@ -16,12 +16,14 @@ setup() ->
     ok = application:set_env(erl_cache, cache_servers,
                              [{?TEST_CACHE, [{wait_for_refresh, false}]}]),
     ok = erl_cache:start(),
+    error_logger:tty(false),
     [fun () -> application:stop(erl_cache) end,
      fun () -> case Old of
                     undefined -> application:unset_env(erl_cache, wait_for_refresh);
                     {ok, Val} -> application:set_env(erl_cache, wait_for_refresh, Val)
                 end
-        end
+        end,
+     fun () -> error_logger:tty(true) end
     ].
 
 cleanup(Funs) ->
@@ -35,6 +37,7 @@ get_set_evict_test_() ->
             {"Get and set with undefined refresh callback", fun refresh_undefined/0},
             {"Get and set with refresh stale_async_mfa", fun refresh_stale_async_mfa/0},
             {"Get and set with refresh stale_sync_closure", fun refresh_stale_sync_closure/0},
+            {"Get and set with error values", fun get_set_error/0},
             {"Stats after basic operations", fun stats/0},
             {"Evict interval cache cleanup + correct stats", fun evict_interval/0},
             {"Parse transform basic usage", fun parse_transform/0}
@@ -117,6 +120,22 @@ refresh_stale_sync_closure() ->
                  get_from_cache(test_key, [{wait_for_refresh, false}], 10)),
     % At this point the value should have been evicted
     ?assertEqual({error, not_found}, get_from_cache(test_key, [], 350)).
+
+get_set_error() ->
+    set_in_cache(foo, bar, [{validity, 30}, {evict, 100}]),
+    set_in_cache(foo2, error, [{validity, 30}, {evict, 100},
+                               {error_validity, 1}, {wait_until_done, true}], 1),
+    ?assertEqual({ok, bar}, get_from_cache(foo, [])),
+    ?assertEqual({error, not_found}, get_from_cache(foo2, [])),
+    set_in_cache(foo3, wrong, [{is_error_callback, {?MODULE, is_error, []}},
+                               {error_validity, 1}, {wait_until_done, true}], 1),
+    set_in_cache(foo4, error, [{is_error_callback, {?MODULE, is_error, []}},
+                               {error_validity, 1}, {wait_until_done, true}], 1),
+    ?assertEqual({error, not_found}, get_from_cache(foo3, [])),
+    ?assertEqual({ok, error}, get_from_cache(foo4, [])).
+
+is_error(wrong) -> true;
+is_error(_) -> false.
 
 stats() ->
     get_from_cache(foo),
