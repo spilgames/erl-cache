@@ -10,7 +10,7 @@
 %% ==================================================================
 
 -export([
-    start_link/1,
+    start_link/2,
     get/3,
     is_valid_name/1,
     set/7,
@@ -26,9 +26,11 @@
          terminate/2, code_change/3]).
 
 -record(state, {
-    name::erl_cache:name(),  %% The name of this cache instance
-    cache::ets:tid(),        %% Holds cache
-    stats::dict()            %% Statistics about cache hits
+    name::erl_cache:name(),                     %% The name of this cache instance
+    cache::ets:tid(),                           %% Holds cache
+    evict_interval::erl_cache:evict_interval(), %% How often expired entries are evicted
+                                                %% from the CACHE table
+    stats::dict()                               %% Statistics about cache hits
 }).
 
 -record(cache_entry, {
@@ -46,9 +48,9 @@
 %% API Function Definitions
 %% ==================================================================
 
--spec start_link(erl_cache:name()) -> {ok, pid()}.
-start_link(Name) ->
-    gen_server:start_link({local, Name}, ?MODULE, [Name], []).
+-spec start_link(erl_cache:name(), erl_cache:evict_interval()) -> {ok, pid()}.
+start_link(Name, EvictInterval) ->
+    gen_server:start_link({local, Name}, ?MODULE, {Name, EvictInterval}, []).
 
 -spec get(erl_cache:name(), erl_cache:key(), erl_cache:wait_for_refresh()) ->
     {ok, erl_cache:value()} | {error, not_found}.
@@ -67,7 +69,6 @@ get(Name, Key, WaitForRefresh) ->
             {ok, NewVal} = refresh(Name, Entry, WaitForRefresh),
             {ok, NewVal};
         [#cache_entry{value=_ExpiredValue}] ->
-            evict(Name, Key, false),
             {error, not_found};
         [] ->
             gen_server:cast(Name, {increase_stat, miss}),
@@ -116,11 +117,12 @@ is_valid_name(Name) ->
 %% ==================================================================
 
 %% @private
--spec init([erl_cache:name()]) -> {ok, #state{}}.
-init([Name]) ->
+-spec init({erl_cache:name(), erl_cache:evict_interval()}) -> {ok, #state{}}.
+init({Name, EvictInterval}) ->
     CacheTid = ets:new(get_table_name(Name), [set, protected, named_table, {keypos,2},
                                               {read_concurrency, true}]),
-    {ok, #state{name=Name, cache=CacheTid, stats=dict:new()}}.
+    timer:send_after(EvictInterval, Name, purge_cache),
+    {ok, #state{name=Name, evict_interval=EvictInterval, cache=CacheTid, stats=dict:new()}}.
 
 %% @private
 -spec handle_call(term(), term(), #state{}) ->
@@ -151,6 +153,13 @@ handle_cast(_Msg, State) ->
 
 %% @private
 -spec handle_info(any(), #state{}) -> {noreply, #state{}}.
+handle_info(purge_cache,
+            #state{name=Name, stats=Stats, cache=Ets, evict_interval=EvictInterval}=State) ->
+    Now = now_ms(),
+    Deleted = ets:select_delete(Ets, [{#cache_entry{evict='$1', _='_'}, [{'<', '$1', Now}], [true]}]),
+    UpdatedStats = update_stats(evict, Deleted, Stats),
+    timer:send_after(EvictInterval, Name, purge_cache),
+    {noreply, State#state{stats=UpdatedStats}};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -207,7 +216,12 @@ do_apply(F) when is_function(F) ->
 %% @private
 -spec update_stats(hit|miss|stale|evict|set, dict()) -> dict().
 update_stats(Stat, Stats) ->
-    dict:update_counter(total_ops, 1, dict:update_counter(Stat, 1, Stats)).
+    update_stats(Stat, 1, Stats).
+
+%% @private
+-spec update_stats(hit|miss|stale|evict|set, pos_integer(), dict()) -> dict().
+update_stats(Stat, N, Stats) ->
+    dict:update_counter(total_ops, N, dict:update_counter(Stat, N, Stats)).
 
 %% @private
 -spec now_ms() -> pos_integer().

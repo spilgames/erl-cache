@@ -36,6 +36,7 @@ get_set_evict_test_() ->
             {"Get and set with refresh stale_async_mfa", fun refresh_stale_async_mfa/0},
             {"Get and set with refresh stale_sync_closure", fun refresh_stale_sync_closure/0},
             {"Stats after basic operations", fun stats/0},
+            {"Evict interval cache cleanup + correct stats", fun evict_interval/0},
             {"Parse transform basic usage", fun parse_transform/0}
     ]}.
 
@@ -44,7 +45,7 @@ get_set_evict_test_() ->
 start_stop_caches() ->
     ?assertEqual({error, {invalid, cache_name}}, erl_cache:start_cache(?TEST_CACHE, [])),
     ?assertMatch({error, {invalid, _}}, erl_cache:start_cache(?TEST_CACHE2, [{validity, some}])),
-    ?assertEqual(ok, erl_cache:start_cache(?TEST_CACHE2, [])),
+    ?assertEqual(ok, erl_cache:start_cache(?TEST_CACHE2, [{evict_interval, 1}])),
     ?assertEqual({error, {invalid, cache_name}}, erl_cache:start_cache(?TEST_CACHE2, [])),
     ?assertEqual({error, {invalid, cache_name}}, erl_cache:stop_cache(no_known_cache)),
     ?assertEqual(ok, erl_cache:stop_cache(?TEST_CACHE2)).
@@ -133,17 +134,32 @@ stats() ->
     Stats = stats_from_cache(),
     ?assertEqual({error, {invalid, cache_name}}, erl_cache:get_stats(no_known_cache)),
     ?assertEqual(3, proplists:get_value(set, Stats)),
-    ?assertEqual(11, proplists:get_value(total_ops, Stats)),
+    ?assertEqual(10, proplists:get_value(total_ops, Stats)),
     ?assertEqual(3, proplists:get_value(hit, Stats)),
     ?assertEqual(2, proplists:get_value(stale, Stats)),
     ?assertEqual(1, proplists:get_value(miss, Stats)),
-    % foo is manually evicted, foo2 is evicted after the miss, foo3 is never evicted
-    ?assertEqual(2, proplists:get_value(evict, Stats)),
-    ?assertEqual(1, proplists:get_value(entries, Stats)),
+    % foo is manually evicted, foo2 and foo3 are not yet evicted despite foo2 miss (evict_interval)
+    ?assertEqual(1, proplists:get_value(evict, Stats)),
+    ?assertEqual(2, proplists:get_value(entries, Stats)),
     ?assertMatch(N when is_integer(N) andalso N>0, proplists:get_value(memory, Stats)).
 
+evict_interval() ->
+    Opts = [{evict_interval, 500}, {validity, 200}, {evict, 0}, {wait_until_done, true}],
+    ?assertEqual(ok, erl_cache:start_cache(?TEST_CACHE2, Opts)),
+    erl_cache:set(?TEST_CACHE2, foo, bar),
+    erl_cache:set(?TEST_CACHE2, foo2, baz, [{validity, 3000}]),
+    ?assertEqual({ok, bar}, erl_cache:get(?TEST_CACHE2, foo)),
+    ?assertEqual({ok, baz}, erl_cache:get(?TEST_CACHE2, foo2)),
+    timer:sleep(500),
+    ?assertEqual({error, not_found}, erl_cache:get(?TEST_CACHE2, foo)),
+    ?assertEqual({ok, baz}, erl_cache:get(?TEST_CACHE2, foo2)),
+    Stats = erl_cache:get_stats(?TEST_CACHE2),
+    ?assertEqual(1, proplists:get_value(evict, Stats)),
+    ?assertEqual(1, proplists:get_value(entries, Stats)),
+    ?assertEqual(7, proplists:get_value(total_ops, Stats)),
+    ?assertEqual(ok, erl_cache:stop_cache(?TEST_CACHE2)).
+
 parse_transform() ->
-    %{Time1, ok} = timer:tc(?MODULE, wait, [1000]),
     {Time1, ok} = timer:tc(fun  () -> wait(1000) end),
     {Time2, ok} = timer:tc(fun  () -> wait(1000) end),
     timer:sleep(1000),

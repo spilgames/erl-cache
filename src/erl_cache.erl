@@ -23,12 +23,15 @@
 -type key() :: term().
 -type value() :: term().
 
--type config_key()::validity | evict | refresh_callback | wait_for_refresh | wait_until_done.
+-type config_key()::validity | evict | refresh_callback | wait_for_refresh
+                  | wait_until_done | evict_interval.
 
 -type validity() :: pos_integer().  %% How long an entry shold be considered valid (in ms).
                                     %% Defaults to 300000
 -type evict() :: non_neg_integer(). %% How long an entry shold be considered stale (non valid byt
                                     %% not yet to be evicted, in ms). Defaults to 60000
+-type evict_interval() :: pos_integer(). %% How often the cache should be scanned in order to delite
+                                         %% expired entries
 -type refresh_callback() :: function() | mfa() | undefined. %% How to refresh a stale entry when
                                                             %% requested via get. Defaults to
                                                             %% undefined
@@ -47,7 +50,8 @@
     {wait_until_done, wait_until_done()} |
     {refresh_callback, refresh_callback()}.
 -type cache_evict_opt() :: {wait_until_done, wait_until_done()}.
--type cache_opts()::[cache_get_opt() | cache_set_opt() | cache_evict_opt()].
+-type cache_opts()::[cache_get_opt() | cache_set_opt() | cache_evict_opt()
+                     | {evict_interval, evict_interval()}].
 
 -type cache_stat()::{memory, pos_integer()} | {size, non_neg_integer()} | {hit, non_neg_integer()} |
                     {evict, non_neg_integer()} | {stale, non_neg_integer()} |
@@ -55,8 +59,8 @@
 -type cache_stats()::[cache_stat()].
 
 -export_type([
-        name/0, key/0, value/0, validity/0, evict/0, refresh_callback/0, cache_stats/0,
-        wait_for_refresh/0, wait_until_done/0
+        name/0, key/0, value/0, validity/0, evict/0, evict_interval/0, refresh_callback/0,
+        cache_stats/0, wait_for_refresh/0, wait_until_done/0
 ]).
 
 %% ==================================================================
@@ -215,7 +219,8 @@ do_start_cache(Name, Opts) ->
             case validate_opts(Opts, []) of
                 {ok, ValidatedOpts} ->
                     ?INFO("Starting cache server '~p'", [Name]),
-                    {ok, _} = erl_cache_server_sup:add_cache(Name),
+                    EvictInterval = proplists:get_value(evict_interval, ValidatedOpts),
+                    {ok, _} = erl_cache_server_sup:add_cache(Name, EvictInterval),
                     true = ets:insert(?CACHE_MAP, {Name, ValidatedOpts}),
                     ok;
                 {error, _}=E -> E
@@ -254,13 +259,26 @@ code_change(_OldVsn, State, _Extra) ->
 validate_opts(_, undefined) ->
     {error, {invalid, cache_name}};
 validate_opts(Opts, Defaults) ->
-    CacheOpts = [validity, evict, refresh_callback, wait_for_refresh, wait_until_done],
+    CacheOpts = [validity, evict, refresh_callback, wait_for_refresh,
+                 wait_until_done, evict_interval],
     ValidationResults = [{K, validate_value(K, Opts, Defaults)} || K <- CacheOpts],
     ErrorList = lists:dropwhile(
             fun ({K, {invalid, K}}) -> false; ({_, _}) -> true end, ValidationResults),
     case ErrorList of
-        [] -> {ok, ValidationResults};
+        [] ->
+            {ok, arrange_evict_interval(ValidationResults)};
         [{K, {invalid, K}=E} | _] -> {error, E}
+    end.
+
+-spec arrange_evict_interval(cache_opts()) -> cache_opts().
+arrange_evict_interval(CacheOpts) ->
+    case proplists:get_value(evict_interval, CacheOpts) of
+        default ->
+            EvictInterval = proplists:get_value(validity, CacheOpts)
+                            + proplists:get_value(evict, CacheOpts),
+            lists:keystore(evict_interval, 1, CacheOpts, {evict_interval, EvictInterval});
+        _ ->
+            CacheOpts
     end.
 
 %% @private
@@ -273,7 +291,7 @@ validate_value(Key, Opts, Defaults) when Key==refresh_callback ->
         Fun when is_function(Fun) -> Fun;
         _ -> {invalid, Key}
     end;
-validate_value(Key, Opts, Defaults) when Key==validity ->
+validate_value(Key, Opts, Defaults) when Key==validity; Key==evict_interval ->
     case proplists:get_value(Key, Opts, undefined) of
         undefined -> default(Key, Defaults);
         N when is_integer(N) andalso N>0 -> N;
@@ -298,6 +316,8 @@ default(validity, Defaults) ->
     proplists:get_value(validity, Defaults, ?DEFAULT_VALIDITY);
 default(evict, Defaults) ->
     proplists:get_value(evict, Defaults, ?DEFAULT_EVICT);
+default(evict_interval, Defaults) ->
+    proplists:get_value(evict_interval, Defaults, default);
 default(wait_for_refresh, Defaults) ->
     proplists:get_value(wait_for_refresh, Defaults, ?DEFAULT_WAIT_FOR_REFRESH);
 default(refresh_callback, Defaults) ->

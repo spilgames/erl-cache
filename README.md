@@ -49,7 +49,14 @@ The default config options unless otherwise specified are:
 <li>wait_until_done: false</li>
 <li>validity: 300000</li>
 <li>evict: 60000</li>
+<li>evict_interval: ServerLevelEvict + ServerLevelValidity</li>
 <li>refresh_callback: undefined</li>
+
+Since the evict_interval option can only be applied at cache server start up time, it
+should be set carefully. This option controls how often entries to be evicted will be deleted from
+the cache. There is only one global evict_interval per cache_server and specific validity and evict
+values passed to set operations or to the ?CACHE macro will not affect it. The evict_interval option
+will be ignored in all function calls except for <code>erl_cache:start_server/2</code>.
 
 <h3> The ?CACHE macro </h3>
 
@@ -64,3 +71,4 @@ sum/2 is called:
 sum(A, B) ->
     A + B.
 </code>
+
