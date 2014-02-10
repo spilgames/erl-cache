@@ -64,6 +64,11 @@ errors. The default validity for such values is a fifth of the default validity 
 Since refreshing an error will produce a rather unpredictable result, error entries never enter the
 stale state: either they are valid or to be evicted.
 
+Also, when refreshing a valid stale entry produces an error, that error will not be used to refresh
+the entry. Instead, the error will be logged and the automatic refresh will be disabled for that
+entry. The cached value will remain in stale state without being refreshed until it expires
+normally.
+
 <h3> Eviction of expired entries</h3>
 
 It's important to know that this application works with a lazy eviction strategy. This means entries

@@ -99,10 +99,7 @@ set(Name, Key, Value, ValidityDelta, EvictDelta,
         refresh_callback = RefreshCb,
         is_error_callback = IsErrorCb
     },
-    case WaitTillSet of
-        false -> ok = gen_server:cast(Name, {set, Entry});
-        true -> ok = gen_server:call(Name, {set, Entry})
-    end.
+    set(Name, Entry, WaitTillSet).
 
 -spec evict(erl_cache:name(), erl_cache:key(), erl_cache:wait_until_done()) -> ok.
 evict(Name, Key, false) ->
@@ -190,6 +187,13 @@ code_change(_OldVsn, State, _Extra) ->
 %% ====================================================================
 
 %% @private
+-spec set(erl_cache:name(), #cache_entry{}, erl_cache:wait_until_done()) -> ok.
+set(Name, Entry, true) ->
+    ok = gen_server:call(Name, {set, Entry});
+set(Name, Entry, false) ->
+    ok = gen_server:cast(Name, {set, Entry}).
+
+%% @private
 -spec set_cache_entry(ets:tid(), #cache_entry{}, dict()) -> dict().
 set_cache_entry(Ets, Entry, Stats) ->
     ets:insert(Ets, Entry),
@@ -204,24 +208,34 @@ evict_cache_entry(Ets, Key, Stats) ->
 %% @private
 -spec refresh(erl_cache:name(), #cache_entry{}, erl_cache:wait_for_refresh()) ->
     {ok, erl_cache:value()}.
-refresh(Name, #cache_entry{key=Key, validity_delta=ValidityDelta, evict_delta=EvictDelta,
-                           error_validity_delta=ErrorValidityDelta, refresh_callback=Callback,
-                           is_error_callback=IsErrorCb}, true) when Callback/=undefined ->
-    NewVal = do_apply(Callback),
-    ok = set(Name, Key, NewVal, ValidityDelta, EvictDelta,
-             Callback, true, ErrorValidityDelta, IsErrorCb),
+refresh(Name, #cache_entry{refresh_callback=Callback}=Entry, true) when Callback/=undefined ->
+    NewVal = do_refresh(Name, Entry, true),
     {ok, NewVal};
-
-refresh(Name, #cache_entry{key=Key, value=Value, validity_delta=ValidityDelta, evict_delta=EvictDelta,
-                           error_validity_delta=ErrorValidityDelta, refresh_callback=Callback,
-                           is_error_callback=IsErrorCb}, false) when Callback/=undefined ->
-    F = fun () ->
-            NewVal = do_apply(Callback),
-            set(Name, Key, NewVal, ValidityDelta, EvictDelta,
-                Callback, false, ErrorValidityDelta, IsErrorCb)
-    end,
+refresh(Name, #cache_entry{value=Value, refresh_callback=Callback}=Entry, false)
+        when Callback/=undefined ->
+    F = fun () -> do_refresh(Name, Entry, false) end,
     _ = spawn(F),
     {ok, Value}.
+
+%% @private
+-spec do_refresh(erl_cache:name(), #cache_entry{}, erl_cache:wait_for_refresh()) ->
+    erl_cache:value().
+do_refresh(Name, #cache_entry{key=Key, validity_delta=ValidityDelta, evict_delta=EvictDelta,
+                              refresh_callback=Callback, is_error_callback=IsErrorCb}=Entry,
+           WaitForRefresh) ->
+    NewVal = do_apply(Callback),
+    Now = now_ms(),
+    RefreshedEntry = case is_error_value(IsErrorCb, NewVal) of
+        false ->
+            Entry#cache_entry{value=NewVal, validity=Now+ValidityDelta,
+                              evict=Now+ValidityDelta+EvictDelta};
+        true ->
+            ?NOTICE("Error refreshing ~p at ~p: ~p. Disabling auto refresh...",
+                    [Key, Name, NewVal]),
+            Entry#cache_entry{refresh_callback=undefined}
+    end,
+    ok = set(Name, RefreshedEntry, WaitForRefresh),
+    NewVal.
 
 %% @private
 -spec do_apply(mfa() | function()) -> term().

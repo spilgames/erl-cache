@@ -38,6 +38,7 @@ get_set_evict_test_() ->
             {"Get and set with refresh stale_async_mfa", fun refresh_stale_async_mfa/0},
             {"Get and set with refresh stale_sync_closure", fun refresh_stale_sync_closure/0},
             {"Get and set with error values", fun get_set_error/0},
+            {"Refresh with error", fun refresh_with_error/0},
             {"Stats after basic operations", fun stats/0},
             {"Evict interval cache cleanup + correct stats", fun evict_interval/0},
             {"Parse transform basic usage", fun parse_transform/0}
@@ -136,6 +137,16 @@ get_set_error() ->
 
 is_error(wrong) -> true;
 is_error(_) -> false.
+
+refresh_with_error() ->
+    set_in_cache(foo, bar, [{validity, 100}, {evict, 300}, {wait_until_done, true},
+                            {refresh_callback, fun () -> error end}, {wait_for_refresh, true}]),
+    ?assertEqual({ok, bar}, get_from_cache(foo, [])),
+    % After 200ms, the value should be stale. We should be still getting the original value, since
+    % the refresh returns an error
+    ?assertEqual({ok, bar}, get_from_cache(foo, [], 200)),
+    % Since the refresh didn't update the validity, after 400ms the value should have been evicted
+    ?assertEqual({error, not_found}, get_from_cache(foo, [], 200)).
 
 stats() ->
     get_from_cache(foo),
