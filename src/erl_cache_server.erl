@@ -79,7 +79,7 @@ get(Name, Key, WaitForRefresh) ->
 
 -spec set(erl_cache:name(), erl_cache:key(), erl_cache:value(), pos_integer(), non_neg_integer(),
           erl_cache:refresh_callback(), erl_cache:wait_until_done(), erl_cache:error_validity(),
-          erl_cahe:is_error_callback()) -> ok.
+          erl_cache:is_error_callback()) -> ok.
 set(Name, Key, Value, ValidityDelta, EvictDelta,
     RefreshCb, WaitTillSet, ErrorValidityDelta, IsErrorCb) ->
     Now = now_ms(),
@@ -166,7 +166,9 @@ handle_cast(_Msg, State) ->
 handle_info(purge_cache,
             #state{name=Name, stats=Stats, cache=Ets, evict_interval=EvictInterval}=State) ->
     Now = now_ms(),
-    Deleted = ets:select_delete(Ets, [{#cache_entry{evict='$1', _='_'}, [{'<', '$1', Now}], [true]}]),
+    {Time, Deleted} = timer:tc(
+        ets, select_delete, [Ets, [{#cache_entry{evict='$1', _='_'}, [{'<', '$1', Now}], [true]}]]),
+    ?INFO("~p cache purged in ~pms", [Name, Time]),
     UpdatedStats = update_stats(evict, Deleted, Stats),
     timer:send_after(EvictInterval, Name, purge_cache),
     {noreply, State#state{stats=UpdatedStats}};
@@ -230,8 +232,6 @@ do_apply(F) when is_function(F) ->
 
 %% @private
 -spec is_error_value(erl_cache:is_error_callback(), erl_cache:value()) -> boolean().
-is_error_value(undefined, _) ->
-    true;
 is_error_value({M, F, A}, Value) ->
     apply(M, F, [Value|A]);
 is_error_value(F, Value) when is_function(F) ->
