@@ -50,9 +50,13 @@ start_stop_caches() ->
     ?assertEqual({error, {invalid, cache_name}}, erl_cache:start_cache(?TEST_CACHE, [])),
     ?assertMatch({error, {invalid, _}}, erl_cache:start_cache(?TEST_CACHE2, [{validity, some}])),
     ?assertEqual(ok, erl_cache:start_cache(?TEST_CACHE2, [{evict_interval, 1}])),
+    StartedServers = erl_cache:list_cache_servers(),
+    ?assertEqual(true, lists:member(?TEST_CACHE, StartedServers)),
+    ?assertEqual(true, lists:member(?TEST_CACHE2, StartedServers)),
     ?assertEqual({error, {invalid, cache_name}}, erl_cache:start_cache(?TEST_CACHE2, [])),
     ?assertEqual({error, {invalid, cache_name}}, erl_cache:stop_cache(no_known_cache)),
-    ?assertEqual(ok, erl_cache:stop_cache(?TEST_CACHE2)).
+    ?assertEqual(ok, erl_cache:stop_cache(?TEST_CACHE2)),
+    ?assertEqual([?TEST_CACHE], erl_cache:list_cache_servers()).
 
 wrong_opts_get_set() ->
     ?assertEqual({error, {invalid, evict}}, set_in_cache(key, value, [{evict, -1}])),

@@ -12,6 +12,7 @@
 -export([
         get/2, get/3,
         get_stats/1,
+        list_cache_servers/0,
         set/3, set/4,
         start/0,
         start_link/0,
@@ -124,6 +125,12 @@ stop_cache(Name) ->
 %% @end
 get(Name, Key) ->
     get(Name, Key, []).
+
+%% @doc Lists the names of the cache servers that have already been assigned
+-spec list_cache_servers() -> [name()].
+%% @end
+list_cache_servers() ->
+    ets:select(?CACHE_MAP, [{{'$1', '_'}, [], ['$1']}]).
 
 %% @doc Gets the value associated with a given key in the cache signaled by the given name.
 -spec get(name(), key(), [cache_get_opt()]) ->
