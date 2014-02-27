@@ -35,8 +35,8 @@ get_set_evict_test_() ->
             {"Catch faulty options in get and set", fun wrong_opts_get_set/0},
             {"Default get, set, evict and stats", fun default_get_set_evict/0},
             {"Get and set with undefined refresh callback", fun refresh_undefined/0},
-            {"Get and set with refresh stale_async_mfa", fun refresh_stale_async_mfa/0},
-            {"Get and set with refresh stale_sync_closure", fun refresh_stale_sync_closure/0},
+            {"Get and set with refresh overdue_async_mfa", fun refresh_overdue_async_mfa/0},
+            {"Get and set with refresh overdue_sync_closure", fun refresh_overdue_sync_closure/0},
             {"Get and set with error values", fun get_set_error/0},
             {"Refresh with error", fun refresh_with_error/0},
             {"Stats after basic operations", fun stats/0},
@@ -90,19 +90,19 @@ refresh_undefined() ->
     TestValue = os:timestamp(),
     ?assertEqual(ok, set_in_cache(test_key, TestValue, SetOpts, 1)),
     ?assertEqual({ok, TestValue}, get_from_cache(test_key, [], 1)),
-    % This get should hit the value in stale and shouldn't refresh it
+    % This get should hit the value in overdue and shouldn't refresh it
     ?assertEqual({ok, TestValue}, get_from_cache(test_key,
                                                  [{refresh_function, {os, timestamp}}], 50)),
     % At this point the value should have been evicted
     ?assertEqual({error, not_found}, get_from_cache(test_key, [], 300)).
 
-refresh_stale_async_mfa() ->
+refresh_overdue_async_mfa() ->
     SetOpts = [{refresh_callback, {os, timestamp, []}}, {validity, 50}, {evict, 300}],
     ?assertEqual({error, not_found}, get_from_cache(test_key, [], 1)),
     TestValue = os:timestamp(),
     ?assertEqual(ok, set_in_cache(test_key, TestValue, SetOpts, 1)),
     ?assertEqual({ok, TestValue}, get_from_cache(test_key, [], 1)),
-    % This get should hit the value in stale and refresh it
+    % This get should hit the value in overdue and refresh it
     ?assertMatch({ok, TestValue}, get_from_cache(test_key, [{wait_for_refresh, false}], 50)),
     % The value should have been asynchronously refreshed
     ?assertMatch({ok, T} when is_tuple(T) andalso T/=TestValue,
@@ -110,14 +110,14 @@ refresh_stale_async_mfa() ->
     % At this point the value should have been evicted
     ?assertEqual({error, not_found}, get_from_cache(test_key, [], 400)).
 
-refresh_stale_sync_closure() ->
+refresh_overdue_sync_closure() ->
     SetOpts = [{refresh_callback, fun() -> os:timestamp() end},
                {validity, 50}, {evict, 300}],
     ?assertEqual({error, not_found}, get_from_cache(test_key, [], 1)),
     TestValue = os:timestamp(),
     ?assertEqual(ok, set_in_cache(test_key, TestValue, SetOpts, 1)),
     ?assertEqual({ok, TestValue}, get_from_cache(test_key, [], 1)),
-    % This get should hit the value in stale and wait for the refresh
+    % This get should hit the value in overdue and wait for the refresh
     {ok, UpdatedValue} = get_from_cache(test_key, [{wait_for_refresh, true}], 50),
     ?assertMatch(T when is_tuple(T) andalso T/=TestValue, UpdatedValue),
     % Since it has just been refreshed, the updated value should be there
@@ -146,7 +146,7 @@ refresh_with_error() ->
     set_in_cache(foo, bar, [{validity, 100}, {evict, 300}, {wait_until_done, true},
                             {refresh_callback, fun () -> error end}, {wait_for_refresh, true}]),
     ?assertEqual({ok, bar}, get_from_cache(foo, [])),
-    % After 200ms, the value should be stale. We should be still getting the original value, since
+    % After 200ms, the value should be overdue. We should be still getting the original value, since
     % the refresh returns an error
     ?assertEqual({ok, bar}, get_from_cache(foo, [], 200)),
     % Since the refresh didn't update the validity, after 400ms the value should have been evicted
@@ -170,7 +170,7 @@ stats() ->
     ?assertEqual(3, proplists:get_value(set, Stats)),
     ?assertEqual(10, proplists:get_value(total_ops, Stats)),
     ?assertEqual(3, proplists:get_value(hit, Stats)),
-    ?assertEqual(2, proplists:get_value(stale, Stats)),
+    ?assertEqual(2, proplists:get_value(overdue, Stats)),
     ?assertEqual(1, proplists:get_value(miss, Stats)),
     % foo is manually evicted, foo2 and foo3 are not yet evicted despite foo2 miss (evict_interval)
     ?assertEqual(1, proplists:get_value(evict, Stats)),

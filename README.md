@@ -14,8 +14,8 @@ thousand slightly different ways.
 The erl_cache module acts as the main application interface, allowing you to start/stop independent
 cache servers and interact with them.
 
-Each entry in a cache can be either valid, stale or evictable. The difference between stale and
-evictable is that, when a stale entry is requested, and in case a refresh callback was indicated
+Each entry in a cache can be either valid, overdue or evictable. The difference between overdue and
+evictable is that, when a overdue entry is requested, and in case a refresh callback was indicated
 when first setting it, it will be refreshed and so back into valid state. Evictable entries will be
 removed from cache when hit and never returned to the client.
 
@@ -29,15 +29,15 @@ every call.
 <img src="doc/images/erl_cache.png" style="max-height: 500px;"/>
 
 erl_cache_server holds the actual cache in its own protected ets table and implements the logic
-behind the refreshing stale entries when hit and the eviction of old entries
+behind the refreshing overdue entries when hit and the eviction of old entries
 
 <h3> Status of an entry</h3>
 
 Every cached entry can be in one of the following three states:
 <li> Valid: any request of that key will result in a hit and the stored value will be returned. An
 entry is in the valid state as long as indicated by the <code>validity</code> option.</li>
-<li> Stale: the entry <code>validity</code> period has passed but  <code>validity + evict</code>
-period hasn't. Any request for a key in such state will be considered a stale hit and never a miss.
+<li> Overdue: the entry <code>validity</code> period has passed but  <code>validity + evict</code>
+period hasn't. Any request for a key in such state will be considered a overdue hit and never a miss.
 In case a <code>refresh_callback</code> was specified for the entry when set, the value will be
 refreshed and set back to valid state. Depending on whether the <code>wait_for_refresh</code>, the
 client will be served the old value or the refreshed one.</li>
@@ -62,11 +62,11 @@ this application considers the atom <code>error</code> and tuples <code>{error, 
 errors. The default validity for such values is a fifth of the default validity for a normal value.
 
 Since refreshing an error will produce a rather unpredictable result, error entries never enter the
-stale state: either they are valid or to be evicted.
+overdue state: either they are valid or to be evicted.
 
-Also, when refreshing a valid stale entry produces an error, that error will not be used to refresh
+Also, when refreshing a valid overdue entry produces an error, that error will not be used to refresh
 the entry. Instead, the error will be logged and the automatic refresh will be disabled for that
-entry. The cached value will remain in stale state without being refreshed until it expires
+entry. The cached value will remain in overdue state without being refreshed until it expires
 normally.
 
 <h3> Eviction of expired entries</h3>

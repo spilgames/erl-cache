@@ -30,15 +30,15 @@
                                       %% will be set to 0, forcing eviction after 2 failed refreshes
 -type validity() :: pos_integer().  %% How long an entry shold be considered valid (in ms).
                                     %% Defaults to 300000
--type evict() :: non_neg_integer(). %% How long an entry shold be considered stale (non valid byt
+-type evict() :: non_neg_integer(). %% How long an entry shold be considered overdue (non valid byt
                                     %% not yet to be evicted, in ms). Defaults to 60000
 -type evict_interval() :: pos_integer(). %% How often the cache should be scanned in order to delite
                                          %% expired entries
--type refresh_callback():: callback() | undefined. %% How to refresh a stale entry when requested
+-type refresh_callback():: callback() | undefined. %% How to refresh a overdue entry when requested
                                                    %% via get. Defaults to undefined
 -type is_error_callback():: callback(). %% fun((value()) -> boolean()) . When specified as an mfa(),
                                         %% the value to be verified will be prepended to the args
--type wait_for_refresh() :: boolean(). %% Whether a get call hiting a stale value should wait for
+-type wait_for_refresh() :: boolean(). %% Whether a get call hiting a overdue value should wait for
                                        %% the refreshed value or return immediatly with a not_found
                                        %% Defaults to true
 -type wait_until_done() :: boolean().  %% Whether set and evict operations should behave
@@ -59,7 +59,7 @@
                      | {evict_interval, evict_interval()}].
 
 -type cache_stat()::{memory, pos_integer()} | {size, non_neg_integer()} | {hit, non_neg_integer()} |
-                    {evict, non_neg_integer()} | {stale, non_neg_integer()} |
+                    {evict, non_neg_integer()} | {overdue, non_neg_integer()} |
                     {miss, non_neg_integer()}.
 -type cache_stats()::[cache_stat()].
 

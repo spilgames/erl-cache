@@ -63,11 +63,11 @@ get(Name, Key, WaitForRefresh) ->
             gen_server:cast(Name, {increase_stat, hit}),
             {ok, Value};
         [#cache_entry{evict=Evict, value=Value, refresh_callback=undefined}] when Now < Evict ->
-            gen_server:cast(Name, {increase_stat, stale}),
+            gen_server:cast(Name, {increase_stat, overdue}),
             {ok, Value};
         [#cache_entry{evict=Evict, refresh_callback=Cb}=Entry] when Now < Evict, Cb /=undefined ->
-            ?DEBUG("Refreshing stale key ~p", [Key]),
-            gen_server:cast(Name, {increase_stat, stale}),
+            ?DEBUG("Refreshing overdue key ~p", [Key]),
+            gen_server:cast(Name, {increase_stat, overdue}),
             {ok, NewVal} = refresh(Name, Entry, WaitForRefresh),
             {ok, NewVal};
         [#cache_entry{value=_ExpiredValue}] ->
@@ -252,12 +252,12 @@ is_error_value(F, Value) when is_function(F) ->
     F(Value).
 
 %% @private
--spec update_stats(hit|miss|stale|evict|set, dict()) -> dict().
+-spec update_stats(hit|miss|overdue|evict|set, dict()) -> dict().
 update_stats(Stat, Stats) ->
     update_stats(Stat, 1, Stats).
 
 %% @private
--spec update_stats(hit|miss|stale|evict|set, pos_integer(), dict()) -> dict().
+-spec update_stats(hit|miss|overdue|evict|set, pos_integer(), dict()) -> dict().
 update_stats(Stat, N, Stats) ->
     dict:update_counter(total_ops, N, dict:update_counter(Stat, N, Stats)).
 
