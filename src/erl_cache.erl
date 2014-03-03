@@ -70,7 +70,8 @@
 
 -export_type([
         name/0, key/0, value/0, validity/0, evict/0, evict_interval/0, refresh_callback/0,
-        cache_stats/0, wait_for_refresh/0, wait_until_done/0, error_validity/0, is_error_callback/0
+        cache_stats/0, wait_for_refresh/0, wait_until_done/0, error_validity/0, is_error_callback/0,
+        cache_opts/0
 ]).
 
 %% ==================================================================

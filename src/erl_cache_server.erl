@@ -128,7 +128,7 @@ is_valid_name(Name) ->
 init({Name, EvictInterval}) ->
     CacheTid = ets:new(get_table_name(Name), [set, protected, named_table, {keypos,2},
                                               {read_concurrency, true}]),
-    timer:send_after(EvictInterval, Name, purge_cache),
+    {ok, _} = timer:send_after(EvictInterval, Name, purge_cache),
     {ok, #state{name=Name, evict_interval=EvictInterval, cache=CacheTid, stats=dict:new()}}.
 
 %% @private
@@ -167,7 +167,7 @@ handle_info(purge_cache,
         ets, select_delete, [Ets, [{#cache_entry{evict='$1', _='_'}, [{'<', '$1', Now}], [true]}]]),
     ?INFO("~p cache purged in ~pms", [Name, Time]),
     UpdatedStats = update_stats(evict, Deleted, Stats),
-    timer:send_after(EvictInterval, Name, purge_cache),
+    {ok, _} = timer:send_after(EvictInterval, Name, purge_cache),
     {noreply, State#state{stats=UpdatedStats}};
 handle_info(_Info, State) ->
     {noreply, State}.
