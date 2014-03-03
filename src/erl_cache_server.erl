@@ -34,16 +34,16 @@
 }).
 
 -record(cache_entry, {
-    key::erl_cache:key(),
-    value::erl_cache:value(),
-    created::pos_integer(),
-    validity::pos_integer(),
-    evict::pos_integer(),
-    validity_delta::erl_cache:validity(),
-    error_validity_delta::erl_cache:error_validity(),
-    evict_delta::erl_cache:evict(),
-    refresh_callback::erl_cache:refresh_callback(),
-    is_error_callback::erl_cache:is_error_callback()
+    key::erl_cache:key() | '_',
+    value::erl_cache:value() | '_',
+    created::pos_integer() | '_',
+    validity::pos_integer() | '_',
+    evict::pos_integer() | '$1',
+    validity_delta::erl_cache:validity() | '_',
+    error_validity_delta::erl_cache:error_validity() | '_',
+    evict_delta::erl_cache:evict() | '_',
+    refresh_callback::erl_cache:refresh_callback() | '_',
+    is_error_callback::erl_cache:is_error_callback() | '_'
 }).
 
 %% ==================================================================
@@ -128,7 +128,7 @@ is_valid_name(Name) ->
 init({Name, EvictInterval}) ->
     CacheTid = ets:new(get_table_name(Name), [set, protected, named_table, {keypos,2},
                                               {read_concurrency, true}]),
-    timer:send_after(EvictInterval, Name, purge_cache),
+    {ok, _} = timer:send_after(EvictInterval, Name, purge_cache),
     {ok, #state{name=Name, evict_interval=EvictInterval, cache=CacheTid, stats=dict:new()}}.
 
 %% @private
@@ -167,7 +167,7 @@ handle_info(purge_cache,
         ets, select_delete, [Ets, [{#cache_entry{evict='$1', _='_'}, [{'<', '$1', Now}], [true]}]]),
     ?INFO("~p cache purged in ~pms", [Name, Time]),
     UpdatedStats = update_stats(evict, Deleted, Stats),
-    timer:send_after(EvictInterval, Name, purge_cache),
+    {ok, _} = timer:send_after(EvictInterval, Name, purge_cache),
     {noreply, State#state{stats=UpdatedStats}};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -238,7 +238,7 @@ do_refresh(Name, #cache_entry{key=Key, validity_delta=ValidityDelta, evict_delta
     NewVal.
 
 %% @private
--spec do_apply(mfa() | function()) -> term().
+-spec do_apply({module(), atom(), [term()]} | function()) -> term().
 do_apply({M, F, A}) when is_atom(M), is_atom(F), is_list(A) ->
     apply(M, F, A);
 do_apply(F) when is_function(F) ->

@@ -28,3 +28,6 @@ docsclean:
 
 go:
 	erl -name erl_cache -pa deps/*/ebin -pa ebin/ -s erl_cache start ${EXTRA_ARGS}
+
+dialyzer:
+	dialyzer -c ebin/ -Wunmatched_returns -Werror_handling -Wrace_conditions

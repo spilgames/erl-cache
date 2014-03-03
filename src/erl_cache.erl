@@ -66,11 +66,12 @@
 -type config_key()::validity | evict | refresh_callback | wait_for_refresh
                   | wait_until_done | evict_interval | is_error_callback | error_validity.
 
--type callback() :: function() | mfa().
+-type callback() :: function() | {module(), atom(), [term()]}.
 
 -export_type([
         name/0, key/0, value/0, validity/0, evict/0, evict_interval/0, refresh_callback/0,
-        cache_stats/0, wait_for_refresh/0, wait_until_done/0, error_validity/0, is_error_callback/0
+        cache_stats/0, wait_for_refresh/0, wait_until_done/0, error_validity/0, is_error_callback/0,
+        cache_opts/0
 ]).
 
 %% ==================================================================
