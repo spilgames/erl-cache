@@ -7,7 +7,7 @@ This application is meant to facilitate the process of caching function calls wi
 Do not expect a complex distributed application here. There are far more complex products out there
 intended to act that way. Istead, erl_cache intends to be a simple solution that unifies common
 caching patterns within an erlang node which you probably have implemented a thousand times in one
-thousand slightly different ways.
+thousand slightly different ways. It's also a nice library if you want to do memoization in Erlang.
 
 <h3> Functional Description </h3>
 
