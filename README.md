@@ -125,3 +125,7 @@ sum(A, B) ->
     A + B.
 </code>
 
+<h3>An Important Note</h3>
+
+This application has been designed for in node caching of small datasets. Keep in mind there are no
+memory limits or control of any kind except for the ones provided by the Erlang VM itself.
