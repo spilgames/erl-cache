@@ -31,3 +31,7 @@ go:
 
 dialyzer:
 	dialyzer -c ebin/ -Wunmatched_returns -Werror_handling -Wrace_conditions
+
+bench:
+	REBAR_BENCH=1 rebar get-deps compile
+	REBAR_BENCH=1 rebar escriptize skip_deps=true
