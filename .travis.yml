@@ -1,5 +1,5 @@
 language: erlang
-script: "make get-deps compile test docs dialyzer"
+script: "make get-deps compile test docs"
 otp_release:
    - 17.0-rc1
    - R16B03-1
