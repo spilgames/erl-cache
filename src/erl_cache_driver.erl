@@ -1,7 +1,10 @@
 -module(erl_cache_driver).
--ifdef(REBAR_BENCH).
 
 -export([new/1, run/4]).
+
+-ignore_xref([
+    {basho_bench_config, get, 2}
+]).
 
 new(1) ->
     ok = erl_cache:start(),
@@ -19,4 +22,3 @@ run(set, KeyGen, ValueGen, State) ->
     erl_cache:set(s1, KeyGen(), ValueGen()),
     {ok, State}.
 
--endif.

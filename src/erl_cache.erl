@@ -5,12 +5,10 @@
 -include("erl_cache.hrl").
 -include("logging.hrl").
 
--ifdef(REBAR_BENCH).
 %% ==================================================================
 %% Escript API
 %% ==================================================================
 -export([main/1]).
--endif.
 
 %% ==================================================================
 %% API Function Exports
@@ -26,6 +24,11 @@
         stop_cache/1, start_cache/2,
         evict/2, evict/3
     ]).
+
+-ignore_xref([
+    {basho_bench, main, 1}
+]).
+
 
 -type name() :: atom(). %% The identifeir for a cache server
 -type key() :: term().  %% The identifier for a cache entry
@@ -96,13 +99,11 @@
 -define(SERVER, ?MODULE).
 
 
--ifdef(REBAR_BENCH).
 %% ====================================================================
 %% Escript
 %% ====================================================================
 main(Args) ->
     basho_bench:main(Args).
--endif.
 
 %% ====================================================================
 %% API
