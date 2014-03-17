@@ -88,11 +88,11 @@ This application accepts only one configuration option: <code>cache_servers</cod
 indicating the name and the default options for each of the caches the application should bring
 up at startup. The format is the same used in <code>erl_cache:start_cache/2</code>. i.e.
 
-<code>
+<pre>
 [{erl_cache, [
     {cache_servers, [{my_cache_server, [{wait_until_done, true}, {validity, 5000}, {evict, 3000}]}]}
 ]}].
-</code>
+</pre>
 
 The default config options unless otherwise specified are:
 <ul>
@@ -103,7 +103,7 @@ The default config options unless otherwise specified are:
 <li>evict: 60000</li>
 <li>evict_interval: ServerLevelEvict + ServerLevelValidity</li>
 <li>refresh_callback: undefined</li>
-<li>is_error_callback: <code>fun (error) -> true; ({error, _}) -> true; (_) -> false end</code></li>
+<li>is_error_callback: <pre>fun (error) -> true; ({error, _}) -> true; (_) -> false end</pre></li>
 </ul>
 Since the <code>evict_interval</code> option can only be applied at cache server start up time, it
 should be set carefully. This option controls how often entries to be evicted will be deleted from
@@ -119,11 +119,11 @@ return value from cache and, in case it's not there, perform the regular functio
 result. Here you can see an example of how to use the macro to avoid sums being performed everytime
 sum/2 is called:
 
-<code>
+<pre>
 ?CACHE(my_cache_namespace, [{validity, 10000}, {evict, 2000}}]).
 sum(A, B) ->
     A + B.
-</code>
+</pre>
 
 <h3>An Important Note</h3>
 
@@ -134,11 +134,14 @@ memory limits or control of any kind except for the ones provided by the Erlang 
 This application has a ready benchmarking suite. It is based on basho bench. To
 run the benchmark:
 
-<code>
-$ make bench<br/>
-$ ./erl_cache conf/bench.conf<br/>
-$ ./deps/basho_bench/gp_throughput.sh
-</code>
+<pre>
+$ make benchmark<br/>
+</pre>
+
+In order to render the results (gnuplot is needed):
+<pre>
+$ ./deps/basho_bench/priv/gp_throughput.sh
+</pre>
 
 For full usage guide please consult <a
 href="http://docs.basho.com/riak/latest/ops/building/benchmarking/">basho bench
