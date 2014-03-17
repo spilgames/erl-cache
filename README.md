@@ -129,3 +129,17 @@ sum(A, B) ->
 
 This application has been designed for in node caching of small datasets. Keep in mind there are no
 memory limits or control of any kind except for the ones provided by the Erlang VM itself.
+
+<h3>Benchmarking</h3>
+This application has a ready benchmarking suite. It is based on basho bench. To
+run the benchmark:
+
+<code>
+$ make bench<br/>
+$ ./erl_cache conf/bench.conf<br/>
+$ ./deps/basho_bench/gp_throughput.sh
+</code>
+
+For full usage guide please consult <a
+href="http://docs.basho.com/riak/latest/ops/building/benchmarking/">basho bench
+documentation</a>.
