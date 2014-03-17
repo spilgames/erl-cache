@@ -99,13 +99,11 @@ set(Name, Key, Value, ValidityDelta, EvictDelta,
         refresh_callback = RefreshCb,
         is_error_callback = IsErrorCb
     },
-    set(Name, Entry, WaitTillSet).
+    operate_cache(Name, fun do_set/2, [Name, Entry], set, WaitTillSet).
 
 -spec evict(erl_cache:name(), erl_cache:key(), erl_cache:wait_until_done()) -> ok.
-evict(Name, Key, false) ->
-    gen_server:cast(Name, {evict, Key});
-evict(Name, Key, true) ->
-    gen_server:call(Name, {evict, Key}).
+evict(Name, Key, WaitUntilDone) ->
+    operate_cache(Name, fun do_evict/2, [Name, Key], evict, WaitUntilDone).
 
 -spec get_stats(erl_cache:name()) -> erl_cache:cache_stats().
 get_stats(Name) ->
@@ -126,20 +124,15 @@ is_valid_name(Name) ->
 %% @private
 -spec init({erl_cache:name(), erl_cache:evict_interval()}) -> {ok, #state{}}.
 init({Name, EvictInterval}) ->
-    CacheTid = ets:new(get_table_name(Name), [set, protected, named_table, {keypos,2},
-                                              {read_concurrency, true}]),
+    CacheTid = ets:new(get_table_name(Name), [set, public, named_table, {keypos,2},
+                                              {read_concurrency, true},
+                                              {write_concurrency, true}]),
     {ok, _} = timer:send_after(EvictInterval, Name, purge_cache),
     {ok, #state{name=Name, evict_interval=EvictInterval, cache=CacheTid, stats=dict:new()}}.
 
 %% @private
 -spec handle_call(term(), term(), #state{}) ->
     {reply, Data::any(), #state{}}.
-handle_call({set, #cache_entry{}=Entry}, _From, #state{cache=Ets, stats=StatsDict} = State) ->
-    UpdatedStats = set_cache_entry(Ets, Entry, StatsDict),
-    {reply, ok, State#state{stats=UpdatedStats}};
-handle_call({evict, Key}, _From, #state{cache=Ets, stats=StatsDict} = State) ->
-    UpdatedStats = evict_cache_entry(Ets, Key, StatsDict),
-    {reply, ok, State#state{stats=UpdatedStats}};
 handle_call(get_stats, _From, #state{stats=Stats} = State) ->
     {reply, dict:to_list(Stats), State};
 handle_call(_Request, _From, State) ->
@@ -149,12 +142,6 @@ handle_call(_Request, _From, State) ->
 -spec handle_cast(any(), #state{}) -> {noreply, #state{}}.
 handle_cast({increase_stat, Stat}, #state{stats=Stats} = State) ->
     {noreply, State#state{stats=update_stats(Stat, Stats)}};
-handle_cast({set, #cache_entry{}=Entry}, #state{cache=Ets, stats=StatsDict} = State) ->
-    UpdatedStats = set_cache_entry(Ets, Entry, StatsDict),
-    {noreply, State#state{stats=UpdatedStats}};
-handle_cast({evict, Key}, #state{cache=Ets, stats=StatsDict} = State) ->
-    UpdatedStats = evict_cache_entry(Ets, Key, StatsDict),
-    {noreply, State#state{stats=UpdatedStats}};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -187,23 +174,25 @@ code_change(_OldVsn, State, _Extra) ->
 %% ====================================================================
 
 %% @private
--spec set(erl_cache:name(), #cache_entry{}, erl_cache:wait_until_done()) -> ok.
-set(Name, Entry, true) ->
-    ok = gen_server:call(Name, {set, Entry});
-set(Name, Entry, false) ->
-    ok = gen_server:cast(Name, {set, Entry}).
+-spec operate_cache(erl_cache:name(), function(), list(), atom(), boolean()) -> ok.
+operate_cache(Name, Function, Input, Stat, Sync) ->
+    case Sync of
+        true -> apply(Function, Input);
+        false -> spawn_link(erlang, apply, [Function, Input])
+    end,
+    gen_server:cast(Name, {increase_stat, Stat}).
 
 %% @private
--spec set_cache_entry(ets:tid(), #cache_entry{}, dict()) -> dict().
-set_cache_entry(Ets, Entry, Stats) ->
-    ets:insert(Ets, Entry),
-    update_stats(set, Stats).
+-spec do_set(erl_cache:name(), #cache_entry{}) -> ok.
+do_set(Name, Entry) ->
+    true = ets:insert(get_table_name(Name), Entry),
+    ok.
 
 %% @private
--spec evict_cache_entry(ets:tid(), #cache_entry{}, dict()) -> dict().
-evict_cache_entry(Ets, Key, Stats) ->
-    ets:delete(Ets, Key),
-    update_stats(evict, Stats).
+-spec do_evict(erl_cache:name(), erl_cache:key()) -> ok.
+do_evict(Name, Key) ->
+    true = ets:delete(get_table_name(Name), Key),
+    ok.
 
 %% @private
 -spec refresh(erl_cache:name(), #cache_entry{}, erl_cache:wait_for_refresh()) ->
@@ -234,7 +223,7 @@ do_refresh(Name, #cache_entry{key=Key, validity_delta=ValidityDelta, evict_delta
                     [Key, Name, NewVal]),
             Entry#cache_entry{refresh_callback=undefined}
     end,
-    ok = set(Name, RefreshedEntry, WaitForRefresh),
+    ok = operate_cache(Name, fun do_set/2, [Name, RefreshedEntry], set, WaitForRefresh),
     NewVal.
 
 %% @private
