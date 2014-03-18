@@ -8,6 +8,10 @@
 -define(DEFAULT_ERROR_VALIDITY, 30000).
 -define(DEFAULT_EVICT, 60000).
 -define(DEFAULT_REFRESH_CALLBACK, undefined).
+-define(DEFAULT_MAX_CACHE_SIZE, undefined).
+
+-define(CACHE_SIZE_CHECK_INTERVAL, 10000).
+-define(DEFAULT_MEM_CHECK_INTERVAL, 10000).
 
 %%============================================================================
 %% Parse transform for the ?CACHE decorator

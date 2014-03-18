@@ -10,11 +10,12 @@
 %% ==================================================================
 
 -export([
-    start_link/2,
+    start_link/1,
     get/3,
     is_valid_name/1,
     set/9,
     evict/3,
+    check_mem_usage/1,
     get_stats/1
 ]).
 
@@ -28,8 +29,6 @@
 -record(state, {
     name::erl_cache:name(),                     %% The name of this cache instance
     cache::ets:tid(),                           %% Holds cache
-    evict_interval::erl_cache:evict_interval(), %% How often expired entries are evicted
-                                                %% from the CACHE table
     stats::dict()                               %% Statistics about cache hits
 }).
 
@@ -50,9 +49,9 @@
 %% API Function Definitions
 %% ==================================================================
 
--spec start_link(erl_cache:name(), erl_cache:evict_interval()) -> {ok, pid()}.
-start_link(Name, EvictInterval) ->
-    gen_server:start_link({local, Name}, ?MODULE, {Name, EvictInterval}, []).
+-spec start_link(erl_cache:name()) -> {ok, pid()}.
+start_link(Name) ->
+    gen_server:start_link({local, Name}, ?MODULE, Name, []).
 
 -spec get(erl_cache:name(), erl_cache:key(), erl_cache:wait_for_refresh()) ->
     {ok, erl_cache:value()} | {error, not_found}.
@@ -122,13 +121,16 @@ is_valid_name(Name) ->
 %% ==================================================================
 
 %% @private
--spec init({erl_cache:name(), erl_cache:evict_interval()}) -> {ok, #state{}}.
-init({Name, EvictInterval}) ->
+-spec init(erl_cache:name()) -> {ok, #state{}}.
+init(Name) ->
     CacheTid = ets:new(get_table_name(Name), [set, public, named_table, {keypos,2},
                                               {read_concurrency, true},
                                               {write_concurrency, true}]),
+    EvictInterval = erl_cache:get_cache_option(Name, evict_interval),
     {ok, _} = timer:send_after(EvictInterval, Name, purge_cache),
-    {ok, #state{name=Name, evict_interval=EvictInterval, cache=CacheTid, stats=dict:new()}}.
+    MemCheckInterval = erl_cache:get_cache_option(Name, mem_check_interval),
+    {ok, _} = timer:apply_after(MemCheckInterval, ?MODULE, check_mem_usage, [Name]),
+    {ok, #state{name=Name, cache=CacheTid, stats=dict:new()}}.
 
 %% @private
 -spec handle_call(term(), term(), #state{}) ->
@@ -142,20 +144,18 @@ handle_call(_Request, _From, State) ->
 -spec handle_cast(any(), #state{}) -> {noreply, #state{}}.
 handle_cast({increase_stat, Stat}, #state{stats=Stats} = State) ->
     {noreply, State#state{stats=update_stats(Stat, Stats)}};
+handle_cast({increase_stat, Stat, N}, #state{stats=Stats} = State) ->
+    {noreply, State#state{stats=update_stats(Stat, N, Stats)}};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
 %% @private
 -spec handle_info(any(), #state{}) -> {noreply, #state{}}.
-handle_info(purge_cache,
-            #state{name=Name, stats=Stats, cache=Ets, evict_interval=EvictInterval}=State) ->
-    Now = now_ms(),
-    {Time, Deleted} = timer:tc(
-        ets, select_delete, [Ets, [{#cache_entry{evict='$1', _='_'}, [{'<', '$1', Now}], [true]}]]),
-    ?INFO("~p cache purged in ~pms", [Name, Time]),
-    UpdatedStats = update_stats(evict, Deleted, Stats),
+handle_info(purge_cache, #state{name=Name}=State) ->
+    purge_cache(Name),
+    EvictInterval = erl_cache:get_cache_option(Name, evict_interval),
     {ok, _} = timer:send_after(EvictInterval, Name, purge_cache),
-    {noreply, State#state{stats=UpdatedStats}};
+    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -195,6 +195,18 @@ do_evict(Name, Key) ->
     ok.
 
 %% @private
+-spec purge_cache(erl_cache:name()) -> ok.
+purge_cache(Name) ->
+    Now = now_ms(),
+    {Time, Deleted} = timer:tc(
+        ets, select_delete,
+        [get_table_name(Name), [{#cache_entry{evict='$1', _='_'}, [{'<', '$1', Now}], [true]}]]),
+    ?INFO("~p cache purged in ~pms", [Name, Time]),
+    gen_server:cast(Name, {increase_stat, evict, Deleted}),
+    ok.
+
+
+%% @private
 -spec refresh(erl_cache:name(), #cache_entry{}, erl_cache:wait_for_refresh()) ->
     {ok, erl_cache:value()}.
 refresh(Name, #cache_entry{refresh_callback=Callback}=Entry, true) when Callback/=undefined ->
@@ -225,6 +237,23 @@ do_refresh(Name, #cache_entry{key=Key, validity_delta=ValidityDelta, evict_delta
     end,
     ok = operate_cache(Name, fun do_set/2, [Name, RefreshedEntry], set, WaitForRefresh),
     NewVal.
+
+%% @private
+-spec check_mem_usage(erl_cache:name()) -> ok.
+check_mem_usage(Name) ->
+    MaxMB = erl_cache:get_cache_option(Name, max_cache_size),
+    CurrentWords = proplists:get_value(memory, ets:info(get_table_name(Name))),
+    CurrentMB = erlang:trunc((CurrentWords * erlang:system_info(wordsize)) / (1024*1024*8)),
+    case MaxMB /= undefined andalso CurrentMB > MaxMB of
+        true ->
+            ?WARNING("~p exceeded memory limit of ~pMB: ~pMB in use! Forcing eviction...",
+                     [Name, MaxMB, CurrentMB]),
+            purge_cache(Name);
+        false -> ok
+    end,
+    MemCheckInterval = erl_cache:get_cache_option(Name, mem_check_interval),
+    {ok, _} = timer:apply_after(MemCheckInterval, ?MODULE, check_mem_usage, [Name]),
+    ok.
 
 %% @private
 -spec do_apply(mfa() | function()) -> term().

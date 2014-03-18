@@ -41,6 +41,7 @@ get_set_evict_test_() ->
             {"Refresh with error", fun refresh_with_error/0},
             {"Stats after basic operations", fun stats/0},
             {"Evict interval cache cleanup + correct stats", fun evict_interval/0},
+            {"Mem limit with tiny interval", fun mem_limit_forces_purge/0},
             {"Parse transform basic usage", fun parse_transform/0}
     ]}.
 
@@ -53,6 +54,7 @@ start_stop_caches() ->
     StartedServers = erl_cache:list_cache_servers(),
     ?assertEqual(true, lists:member(?TEST_CACHE, StartedServers)),
     ?assertEqual(true, lists:member(?TEST_CACHE2, StartedServers)),
+    ok = erl_cache:set_cache_defaults(?TEST_CACHE2, [{evict_interval, 2}]),
     ?assertEqual({error, {invalid, cache_name}}, erl_cache:start_cache(?TEST_CACHE2, [])),
     ?assertEqual({error, {invalid, cache_name}}, erl_cache:stop_cache(no_known_cache)),
     ?assertEqual(ok, erl_cache:stop_cache(?TEST_CACHE2)),
@@ -152,6 +154,22 @@ refresh_with_error() ->
     % Since the refresh didn't update the validity, after 400ms the value should have been evicted
     ?assertEqual({error, not_found}, get_from_cache(foo, [], 200)).
 
+mem_limit_forces_purge() ->
+    Opts = [{max_cache_size, 1}, {mem_check_interval, 10}, {evict_interval, 10000}],
+    ?assertEqual(ok, erl_cache:start_cache(?TEST_CACHE2, Opts)),
+    erl_cache:set(?TEST_CACHE2, k, v, [{validity, 1}, {evict, 0}, {wait_until_done, true}]),
+    timer:sleep(50),
+    Stats = erl_cache:get_stats(?TEST_CACHE2),
+    ?assertEqual(1, proplists:get_value(entries, Stats)),
+    V2 = [97 || _ <- lists:seq(1, 1024*1024 + 1)],
+    erl_cache:set(?TEST_CACHE2, k2, V2, [{validity, 1}, {evict, 0}, {wait_until_done, true}]),
+    erl_cache:set(?TEST_CACHE2, k3, v3, [{validity, 1000}, {evict, 0}, {wait_until_done, true}]),
+    timer:sleep(100),
+    Stats2 = erl_cache:get_stats(?TEST_CACHE2),
+    ?assertEqual(1, proplists:get_value(entries, Stats2)),
+    ?assertEqual({ok, v3}, erl_cache:get(?TEST_CACHE2, k3)),
+    ?assertEqual(ok, erl_cache:stop_cache(?TEST_CACHE2)).
+
 stats() ->
     get_from_cache(foo),
     set_in_cache(foo, bar, [{validity, 30}, {evict, 100}]),
@@ -200,7 +218,11 @@ parse_transform() ->
     {Time3, ok} = timer:tc(fun  () -> wait(1000) end),
     ?assertMatch(N when N>1000000, Time1),
     ?assertMatch(N when N<1000000, Time2),
-    ?assertMatch(N when N>1000000, Time3).
+    ?assertMatch(N when N>1000000, Time3),
+    ?assertMatch(2, sum(1, 1)),
+    ?assertMatch(2, sum(1, 1)),
+    ?assertMatch(7, sum(6, 1)),
+    ?assertMatch(7, sum(6, 1)).
 
 %% Internal functions
 
@@ -236,3 +258,9 @@ stats_from_cache() ->
 wait(Time) ->
     timer:sleep(Time),
     ok.
+
+?CACHE(?TEST_CACHE, [{validity, 30000}, {evict, 5000}]).
+sum(A, B) when A < 5 ->
+        A + B;
+sum(A, B) when A > 5 ->
+        A + B.
