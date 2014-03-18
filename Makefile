@@ -37,5 +37,5 @@ erl_cache:
 	REBAR_BENCH=1 rebar get-deps compile
 	REBAR_BENCH=1 rebar escriptize skip_deps=true
 
-benchmark: erl_cache
+benchmark: erl_cache quick
 	./erl_cache priv/bench.conf

@@ -60,7 +60,9 @@
 -type cache_get_opt()::{wait_for_refresh, wait_for_refresh()}.
 
 -type cache_size()::non_neg_integer(). %% Soft limit to the cache size in MB
--type cache_server_opt()::{max_cache_size, cache_size() | undefined}
+-type cache_server_opt()::
+    {max_cache_size, cache_size() | undefined} %% NOTE: this limit is soft and particularly
+                                               %% innaccurate when working with large binaries!
     | {mem_check_interval, pos_integer()}.
 
 -type cache_set_opt() ::
