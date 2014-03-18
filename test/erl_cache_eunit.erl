@@ -211,7 +211,11 @@ parse_transform() ->
     {Time3, ok} = timer:tc(fun  () -> wait(1000) end),
     ?assertMatch(N when N>1000000, Time1),
     ?assertMatch(N when N<1000000, Time2),
-    ?assertMatch(N when N>1000000, Time3).
+    ?assertMatch(N when N>1000000, Time3),
+    ?assertMatch(2, sum(1, 1)),
+    ?assertMatch(2, sum(1, 1)),
+    ?assertMatch(7, sum(6, 1)),
+    ?assertMatch(7, sum(6, 1)).
 
 %% Internal functions
 
@@ -247,3 +251,9 @@ stats_from_cache() ->
 wait(Time) ->
     timer:sleep(Time),
     ok.
+
+?CACHE(?TEST_CACHE, [{validity, 30000}, {evict, 5000}]).
+sum(A, B) when A < 5 ->
+        A + B;
+sum(A, B) when A > 5 ->
+        A + B.
