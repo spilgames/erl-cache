@@ -163,8 +163,13 @@ set_cache_defaults(Name, CacheOpts) ->
 get_cache_option(Name, Opt) ->
     case ets:lookup(?CACHE_MAP, Name) of
         [] -> {error, {invalid, cache_name}};
-        [{evict_interval, Opts}] -> arrange_evict_interval(Opts);
-        [{Name, Opts}] -> default(Opt, Opts)
+        [{Name, Opts}] ->
+            case Opt of
+                evict_interval ->
+                    proplists:get_value(evict_interval, arrange_evict_interval(Opts));
+                _ ->
+                    default(Opt, Opts)
+            end
     end.
 
 %% @see get/3
@@ -386,8 +391,10 @@ validate_value(Key, Opts, Defaults) when Key==wait_for_refresh; Key==wait_until_
 
 %% @private
 -spec default(config_key(), cache_opts()) -> term().
-default(max_cache_size, _Defaults) -> ?DEFAULT_MAX_CACHE_SIZE;
-default(mem_check_interval, _Defaults) -> ?DEFAULT_MEM_CHECK_INTERVAL;
+default(max_cache_size, Defaults) ->
+    proplists:get_value(max_cache_size, Defaults, ?DEFAULT_MAX_CACHE_SIZE);
+default(mem_check_interval, Defaults) ->
+    proplists:get_value(mem_check_interval, Defaults, ?DEFAULT_MEM_CHECK_INTERVAL);
 default(validity, Defaults) ->
     proplists:get_value(validity, Defaults, ?DEFAULT_VALIDITY);
 default(error_validity, Defaults) ->

@@ -116,7 +116,7 @@ calls except for <code>erl_cache:start_server/2</code> and <code>erl_cache:set_c
 Configuration options for a cache server can be overwriten at runtime by using
 <code>erl_cache:set_cache_defaults/2</code>.
 
-The max_cache_size and max_check_interval options provide a very simple mechanism to inform and
+The max_cache_size (in MB) and max_check_interval options provide a very simple mechanism to inform and
 react on caches consuming too much memory. In short, the mechanism scans periodically the amount of
 memory consumed by the cache ets and if it goes over a limit prints a warning and forces an eviction
 cycle. Keep in mind this is far from accurate and can work particularly badly when caching large
