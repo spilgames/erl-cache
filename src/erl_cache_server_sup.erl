@@ -5,7 +5,7 @@
 -include("logging.hrl").
 
 %% API
--export([start_link/0, add_cache/2, remove_cache/1]).
+-export([start_link/0, add_cache/1, remove_cache/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -20,10 +20,10 @@
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
--spec add_cache(erl_cache:name(), erl_cache:evict_interval()) -> {ok, pid()}.
-add_cache(Name, EvictInterval) ->
+-spec add_cache(erl_cache:name()) -> {ok, pid()}.
+add_cache(Name) ->
     ?INFO("Adding supervised cache '~p'~n", [Name]),
-    supervisor:start_child(?MODULE, cache_spec(Name, EvictInterval)).
+    supervisor:start_child(?MODULE, cache_spec(Name)).
 
 -spec remove_cache(erl_cache:name()) -> ok.
 remove_cache(Name) ->
@@ -49,7 +49,7 @@ init([]) ->
 %% ===================================================================
 %% Supervisor callbacks
 %% ===================================================================
--spec cache_spec(erl_cache:name(), erl_cache:evict_interval()) -> supervisor:child_spec().
-cache_spec(Name, EvictInterval) ->
-    {Name, {erl_cache_server, start_link, [Name, EvictInterval]}, permanent, 5000, worker, [erl_cache_server]}.
+-spec cache_spec(erl_cache:name()) -> supervisor:child_spec().
+cache_spec(Name) ->
+    {Name, {erl_cache_server, start_link, [Name]}, permanent, 5000, worker, [erl_cache_server]}.
 

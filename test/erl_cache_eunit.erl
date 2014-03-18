@@ -41,6 +41,7 @@ get_set_evict_test_() ->
             {"Refresh with error", fun refresh_with_error/0},
             {"Stats after basic operations", fun stats/0},
             {"Evict interval cache cleanup + correct stats", fun evict_interval/0},
+            {"Mem limit with tiny interval", fun mem_limit_forces_purge/0},
             {"Parse transform basic usage", fun parse_transform/0}
     ]}.
 
@@ -53,6 +54,7 @@ start_stop_caches() ->
     StartedServers = erl_cache:list_cache_servers(),
     ?assertEqual(true, lists:member(?TEST_CACHE, StartedServers)),
     ?assertEqual(true, lists:member(?TEST_CACHE2, StartedServers)),
+    ok = erl_cache:set_cache_defaults(?TEST_CACHE2, [{evict_interval, 2}]),
     ?assertEqual({error, {invalid, cache_name}}, erl_cache:start_cache(?TEST_CACHE2, [])),
     ?assertEqual({error, {invalid, cache_name}}, erl_cache:stop_cache(no_known_cache)),
     ?assertEqual(ok, erl_cache:stop_cache(?TEST_CACHE2)),
@@ -151,6 +153,15 @@ refresh_with_error() ->
     ?assertEqual({ok, bar}, get_from_cache(foo, [], 200)),
     % Since the refresh didn't update the validity, after 400ms the value should have been evicted
     ?assertEqual({error, not_found}, get_from_cache(foo, [], 200)).
+
+mem_limit_forces_purge() ->
+    Opts = [{max_cache_size, 0}, {memcheck_interval, 10}, {evict_interval, 10000}],
+    ?assertEqual(ok, erl_cache:start_cache(?TEST_CACHE2, Opts)),
+    erl_cache:set(?TEST_CACHE2, k, v, [{validity, 1}, {evict, 0}, {wait_until_done, true}]),
+    timer:sleep(100),
+    Stats = stats_from_cache(),
+    ?assertEqual(0, proplists:get_value(entries, Stats)),
+    ?assertEqual(ok, erl_cache:stop_cache(?TEST_CACHE2)).
 
 stats() ->
     get_from_cache(foo),
