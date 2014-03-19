@@ -1,4 +1,4 @@
-.PHONY: clean test docs
+.PHONY: clean test docs benchmark docsclean go quick dialyzer
 
 all: get-deps compile
 
@@ -15,6 +15,7 @@ quick:
 
 clean:
 	rebar clean
+	rm -f erl_cache
 
 test: compile
 	rebar skip_deps=true eunit
@@ -31,3 +32,10 @@ go:
 
 dialyzer:
 	dialyzer -c ebin/ -Wunmatched_returns -Werror_handling -Wrace_conditions
+
+erl_cache:
+	REBAR_BENCH=1 rebar get-deps compile
+	REBAR_BENCH=1 rebar escriptize skip_deps=true
+
+benchmark: erl_cache quick
+	./erl_cache priv/bench.conf

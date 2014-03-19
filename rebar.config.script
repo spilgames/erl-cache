@@ -1,0 +1,16 @@
+ExtraDeps = [
+    {basho_bench, "", {git, "git://github.com/spilgames/basho_bench.git", {tag, "0.1-56-g3d5c35d386f4"}}}
+],
+
+case os:getenv("REBAR_BENCH") of
+    false ->
+        CONFIG;
+    _ ->
+        C1 = case lists:keysearch(deps, 1, CONFIG) of
+            {value, {deps, Deps}} ->
+                NDeps = ExtraDeps ++ Deps,
+                lists:keyreplace(deps, 1, CONFIG, {deps, NDeps});
+            false ->
+                CONFIG ++ [{deps, ExtraDeps}]
+        end
+end.

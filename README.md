@@ -88,11 +88,11 @@ This application accepts only one configuration option: <code>cache_servers</cod
 indicating the name and the default options for each of the caches the application should bring
 up at startup. The format is the same used in <code>erl_cache:start_cache/2</code>. i.e.
 
-<code>
+<pre>
 [{erl_cache, [
     {cache_servers, [{my_cache_server, [{wait_until_done, true}, {validity, 5000}, {evict, 3000}]}]}
 ]}].
-</code>
+</pre>
 
 The default config options unless otherwise specified are:
 <ul>
@@ -102,14 +102,25 @@ The default config options unless otherwise specified are:
 <li>error_validity: 60000</li>
 <li>evict: 60000</li>
 <li>evict_interval: ServerLevelEvict + ServerLevelValidity</li>
+<li>max_cache_size: undefined</li>
+<li>mem_check_interval: 10000</li>
 <li>refresh_callback: undefined</li>
-<li>is_error_callback: <code>fun (error) -> true; ({error, _}) -> true; (_) -> false end</code></li>
+<li>is_error_callback: <pre>fun (error) -> true; ({error, _}) -> true; (_) -> false end</pre></li>
 </ul>
-Since the <code>evict_interval</code> option can only be applied at cache server start up time, it
-should be set carefully. This option controls how often entries to be evicted will be deleted from
+The <code>evict_interval</code> option controls how often entries to be evicted will be deleted from
 the cache. There is only one global evict_interval per cache_server and specific validity and evict
-values passed to set operations or to the <code>?CACHE</code> macro will not affect it. The evict_interval option
-will be ignored in all function calls except for <code>erl_cache:start_server/2</code>.
+values passed to set operations or to the <code>?CACHE</code> macro will not affect it.
+The evict_interval, max_cache_size and mem_check_interval options will be ignored in all function
+calls except for <code>erl_cache:start_server/2</code> and <code>erl_cache:set_cache_defaults/2</code>.
+
+Configuration options for a cache server can be overwriten at runtime by using
+<code>erl_cache:set_cache_defaults/2</code>.
+
+The max_cache_size (in MB) and max_check_interval options provide a very simple mechanism to inform and
+react on caches consuming too much memory. In short, the mechanism scans periodically the amount of
+memory consumed by the cache ets and if it goes over a limit prints a warning and forces an eviction
+cycle. Keep in mind this is far from accurate and can work particularly badly when caching large
+binaries, since the memory consumed by these is not reported by ets.
 
 <h3>The ?CACHE macro</h3>
 
@@ -119,13 +130,36 @@ return value from cache and, in case it's not there, perform the regular functio
 result. Here you can see an example of how to use the macro to avoid sums being performed everytime
 sum/2 is called:
 
-<code>
+<pre>
 ?CACHE(my_cache_namespace, [{validity, 10000}, {evict, 2000}}]).
 sum(A, B) ->
     A + B.
-</code>
+</pre>
 
-<h3>An Important Note</h3>
+<h3>Important Notes</h3>
 
-This application has been designed for in node caching of small datasets. Keep in mind there are no
-memory limits or control of any kind except for the ones provided by the Erlang VM itself.
+This application has been designed for in node caching of small datasets. Keep in mind the
+memory limiting mechanism provided by max_cache_size is not strict in any way; it just acts as
+a helper to aliviate the pain if possible by forcing an extra purge of the cached entries when
+running out of the configured memory for the cache ets.
+
+The memory control mechanism is not accurate and doesn't deal properly with cached large binaries,
+since the cache ets will only store references to them and it's not possible to figure the exact
+size of the referenced binaries.
+
+<h3>Benchmarking</h3>
+This application has a ready benchmarking suite. It is based on basho bench. To
+run the benchmark:
+
+<pre>
+$ make benchmark<br/>
+</pre>
+
+In order to render the results (gnuplot is needed):
+<pre>
+$ ./deps/basho_bench/priv/gp_throughput.sh
+</pre>
+
+For full usage guide please consult <a
+href="http://docs.basho.com/riak/latest/ops/building/benchmarking/">basho bench
+documentation</a>.

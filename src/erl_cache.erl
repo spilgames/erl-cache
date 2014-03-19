@@ -6,6 +6,11 @@
 -include("logging.hrl").
 
 %% ==================================================================
+%% Escript API
+%% ==================================================================
+-export([main/1]).
+
+%% ==================================================================
 %% API Function Exports
 %% ==================================================================
 
@@ -17,8 +22,14 @@
         start/0,
         start_link/0,
         stop_cache/1, start_cache/2,
+        set_cache_defaults/2, get_cache_option/2,
         evict/2, evict/3
     ]).
+
+-ignore_xref([
+    {basho_bench, main, 1}
+]).
+
 
 -type name() :: atom(). %% The identifeir for a cache server
 -type key() :: term().  %% The identifier for a cache entry
@@ -47,6 +58,13 @@
 -type invalid_opt_error()::{invalid, config_key() | cache_name}.
 
 -type cache_get_opt()::{wait_for_refresh, wait_for_refresh()}.
+
+-type cache_size()::non_neg_integer(). %% Soft limit to the cache size in MB
+-type cache_server_opt()::
+    {max_cache_size, cache_size() | undefined} %% NOTE: this limit is soft and particularly
+                                               %% innaccurate when working with large binaries!
+    | {mem_check_interval, pos_integer()}.
+
 -type cache_set_opt() ::
     {validity, validity()} |
     {evict, evict()} |
@@ -56,7 +74,7 @@
     {refresh_callback, refresh_callback()}.
 -type cache_evict_opt() :: {wait_until_done, wait_until_done()}.
 -type cache_opts()::[cache_get_opt() | cache_set_opt() | cache_evict_opt()
-                     | {evict_interval, evict_interval()}].
+                     | {evict_interval, evict_interval()} | cache_server_opt()].
 
 -type cache_stat()::{memory, pos_integer()} | {size, non_neg_integer()} | {hit, non_neg_integer()} |
                     {evict, non_neg_integer()} | {overdue, non_neg_integer()} |
@@ -71,7 +89,7 @@
 -export_type([
         name/0, key/0, value/0, validity/0, evict/0, evict_interval/0, refresh_callback/0,
         cache_stats/0, wait_for_refresh/0, wait_until_done/0, error_validity/0, is_error_callback/0,
-        cache_opts/0
+        cache_size/0, cache_opts/0
 ]).
 
 %% ==================================================================
@@ -87,6 +105,13 @@
 
 -define(CACHE_MAP, cache_map).
 -define(SERVER, ?MODULE).
+
+
+%% ====================================================================
+%% Escript
+%% ====================================================================
+main(Args) ->
+    basho_bench:main(Args).
 
 %% ====================================================================
 %% API
@@ -117,6 +142,35 @@ start_cache(Name, Opts) ->
 %% @end
 stop_cache(Name) ->
     gen_server:call(?SERVER, {stop_cache, Name}).
+
+%% @doc Sets the defaults for a cache server.
+-spec set_cache_defaults(name(), cache_opts()) ->  ok | {error, invalid_opt_error()}.
+%% @end
+set_cache_defaults(Name, CacheOpts) ->
+    case is_available_name(Name) of
+        false ->
+            case validate_opts(CacheOpts, []) of
+                {ok, ValidatedOpts} ->
+                    gen_server:call(?SERVER, {set_defaults, Name, ValidatedOpts});
+                {error, _}=E -> E
+            end;
+        true -> {error, {invalid, cache_name}}
+    end.
+
+%% @doc Gets the default value of a cache server option.
+-spec get_cache_option(name(), cache_opts()) -> term().
+%% @end
+get_cache_option(Name, Opt) ->
+    case ets:lookup(?CACHE_MAP, Name) of
+        [] -> {error, {invalid, cache_name}};
+        [{Name, Opts}] ->
+            case Opt of
+                evict_interval ->
+                    proplists:get_value(evict_interval, arrange_evict_interval(Opts));
+                _ ->
+                    default(Opt, Opts)
+            end
+    end.
 
 %% @see get/3
 -spec get(name(), key()) ->
@@ -229,7 +283,10 @@ handle_call({stop_cache, Name}, _From, #state{}=State) ->
         false ->
             {error, {invalid, cache_name}}
     end,
-    {reply, Res, State}.
+    {reply, Res, State};
+handle_call({set_defaults, Name, Opts}, _From, #state{}=State) ->
+    true = ets:insert(?CACHE_MAP, {Name, Opts}),
+    {reply, ok, State}.
 
 %% @private
 -spec do_start_cache(name(), cache_opts()) -> ok | {error, invalid_opt_error()}.
@@ -238,10 +295,9 @@ do_start_cache(Name, Opts) ->
         true ->
             case validate_opts(Opts, []) of
                 {ok, ValidatedOpts} ->
-                    ?INFO("Starting cache server '~p'", [Name]),
-                    EvictInterval = proplists:get_value(evict_interval, ValidatedOpts),
-                    {ok, _} = erl_cache_server_sup:add_cache(Name, EvictInterval),
                     true = ets:insert(?CACHE_MAP, {Name, ValidatedOpts}),
+                    ?INFO("Starting cache server '~p'", [Name]),
+                    {ok, _} = erl_cache_server_sup:add_cache(Name),
                     ok;
                 {error, _}=E -> E
             end;
@@ -279,8 +335,9 @@ code_change(_OldVsn, State, _Extra) ->
 validate_opts(_, undefined) ->
     {error, {invalid, cache_name}};
 validate_opts(Opts, Defaults) ->
-    CacheOpts = [validity, evict, refresh_callback, wait_for_refresh,
-                 wait_until_done, evict_interval, error_validity, is_error_callback],
+    CacheOpts = [validity, evict, refresh_callback, wait_for_refresh, max_cache_size,
+                 wait_until_done, evict_interval, error_validity, is_error_callback,
+                 mem_check_interval],
     ValidationResults = [{K, validate_value(K, Opts, Defaults)} || K <- CacheOpts],
     ErrorList = lists:dropwhile(
             fun ({K, {invalid, K}}) -> false; ({_, _}) -> true end, ValidationResults),
@@ -312,13 +369,14 @@ validate_value(Key, Opts, Defaults) when Key==refresh_callback; Key==is_error_ca
         Fun when is_function(Fun) -> Fun;
         _ -> {invalid, Key}
     end;
-validate_value(Key, Opts, Defaults) when Key==validity; Key==evict_interval; Key==error_validity ->
+validate_value(Key, Opts, Defaults) when Key==validity; Key==evict_interval;
+        Key==error_validity; Key==mem_check_interval ->
     case proplists:get_value(Key, Opts, undefined) of
         undefined -> default(Key, Defaults);
         N when is_integer(N) andalso N>0 -> N;
         _ -> {invalid, Key}
     end;
-validate_value(Key, Opts, Defaults) when Key==evict ->
+validate_value(Key, Opts, Defaults) when Key==evict; Key==max_cache_size ->
     case proplists:get_value(Key, Opts, undefined) of
         undefined -> default(Key, Defaults);
         N when is_integer(N) andalso N>=0 -> N;
@@ -333,6 +391,10 @@ validate_value(Key, Opts, Defaults) when Key==wait_for_refresh; Key==wait_until_
 
 %% @private
 -spec default(config_key(), cache_opts()) -> term().
+default(max_cache_size, Defaults) ->
+    proplists:get_value(max_cache_size, Defaults, ?DEFAULT_MAX_CACHE_SIZE);
+default(mem_check_interval, Defaults) ->
+    proplists:get_value(mem_check_interval, Defaults, ?DEFAULT_MEM_CHECK_INTERVAL);
 default(validity, Defaults) ->
     proplists:get_value(validity, Defaults, ?DEFAULT_VALIDITY);
 default(error_validity, Defaults) ->
@@ -348,7 +410,8 @@ default(refresh_callback, Defaults) ->
 default(is_error_callback, Defaults) ->
     proplists:get_value(is_error_callback, Defaults, fun is_error/1);
 default(wait_until_done, Defaults) ->
-    proplists:get_value(wait_until_done, Defaults, ?DEFAULT_WAIT_UNTIL_DONE).
+    proplists:get_value(wait_until_done, Defaults, ?DEFAULT_WAIT_UNTIL_DONE);
+default(_, _) -> undefined.
 
 %% @private
 -spec is_error(value()) -> boolean().
