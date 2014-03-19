@@ -1,28 +1,33 @@
+REBAR ?= rebar
+ifneq ($(wildcard rebar),)
+	REBAR := ./rebar
+endif
+
 .PHONY: clean test docs benchmark docsclean go quick dialyzer
 
 all: get-deps compile
 
 get-deps:
-	rebar get-deps
+	$(REBAR) get-deps
 
 compile:
-	rebar compile
-	rebar skip_deps=true xref
+	$(REBAR) compile
+	$(REBAR) skip_deps=true xref
 
 quick:
-	rebar skip_deps=true compile
-	rebar skip_deps=true xref
+	$(REBAR) skip_deps=true compile
+	$(REBAR) skip_deps=true xref
 
 clean:
-	rebar clean
+	$(REBAR) clean
 	rm -f erl_cache
 
 test: compile
-	rebar skip_deps=true eunit
+	$(REBAR) skip_deps=true eunit
 
 docs: docsclean
 	ln -s . doc/doc
-	rebar skip_deps=true doc
+	$(REBAR) skip_deps=true doc
 
 docsclean:
 	rm -f doc/*.html doc/*.css doc/erlang.png doc/edoc-info doc/doc
@@ -34,8 +39,8 @@ dialyzer:
 	dialyzer -c ebin/ -Wunmatched_returns -Werror_handling -Wrace_conditions
 
 erl_cache:
-	REBAR_BENCH=1 rebar get-deps compile
-	REBAR_BENCH=1 rebar escriptize skip_deps=true
+	REBAR_BENCH=1 $(REBAR) get-deps compile
+	REBAR_BENCH=1 $(REBAR) escriptize skip_deps=true
 
 benchmark: erl_cache quick
 	./erl_cache priv/bench.conf
