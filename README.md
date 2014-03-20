@@ -9,7 +9,7 @@ intended to act that way. Instead, erl_cache intends to be a simple solution tha
 caching patterns within an erlang node which you probably have implemented a thousand times in one
 thousand slightly different ways. It's also a nice library if you want to do memoization in Erlang.
 
-<a href="https://travis-ci.org/spilgames/erl-cache" target="_blank"><img src="https://travis-ci.org/spilgames/erl-cache.svg?branch=master"></a>
+<a href="https://travis-ci.org/spilgames/erl-cache" target="_blank"><img src="https://travis-ci.org/spilgames/erl-cache.svg?branch=master"/></a>
 
 <h3>Functional Description</h3>
 
