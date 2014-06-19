@@ -124,6 +124,10 @@ memory consumed by the cache ets and if it goes over a limit prints a warning an
 cycle. Keep in mind this is far from accurate and can work particularly badly when caching large
 binaries, since the memory consumed by these is not reported by ets.
 
+The <code>key_generation</code> option allows the specification of a controlled
+key format when using the macro. The <code>{key_generation, Module}</code> can
+be used in the macro usage or in the defaults for the server. Module must
+implement the erl_cache_key_generator behaviour.
 <h3>The ?CACHE macro</h3>
 
 For ease of use, this application provides the <code>?CACHE</code> macro. This macro can be placed on top of

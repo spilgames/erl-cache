@@ -4,12 +4,16 @@
 -include("erl_cache.hrl").
 -include_lib("decorator_pt/include/decorator_pt.hrl").
 
+-behaviour(erl_cache_key_generator).
+-export([generate_key/4]).
+
 -ifdef(TEST).
 -export([is_error/1]).
 -endif.
 
 -define(TEST_CACHE, s1).
 -define(TEST_CACHE2, s2).
+
 
 setup() ->
     Old = application:get_env(erl_cache, cache_servers),
@@ -42,7 +46,8 @@ get_set_evict_test_() ->
             {"Stats after basic operations", fun stats/0},
             {"Evict interval cache cleanup + correct stats", fun evict_interval/0},
             {"Mem limit with tiny interval", fun mem_limit_forces_purge/0},
-            {"Parse transform basic usage", fun parse_transform/0}
+            {"Parse transform basic usage", fun parse_transform/0},
+            {"Configurable callback for keys", fun key_generation/0}
     ]}.
 
 %% Test Sets
@@ -161,7 +166,7 @@ mem_limit_forces_purge() ->
     timer:sleep(50),
     Stats = erl_cache:get_stats(?TEST_CACHE2),
     ?assertEqual(1, proplists:get_value(entries, Stats)),
-    V2 = [97 || _ <- lists:seq(1, 1024*1024 + 1)],
+    V2 = [97 || _ <- lists:seq(1, 1024*1024*2)],
     erl_cache:set(?TEST_CACHE2, k2, V2, [{validity, 1}, {evict, 0}, {wait_until_done, true}]),
     erl_cache:set(?TEST_CACHE2, k3, v3, [{validity, 1000}, {evict, 0}, {wait_until_done, true}]),
     timer:sleep(100),
@@ -224,6 +229,14 @@ parse_transform() ->
     ?assertMatch(7, sum(6, 1)),
     ?assertMatch(7, sum(6, 1)).
 
+key_generation() ->
+    value = function_name(arg1, "arg2"),
+    Key = generate_key(?TEST_CACHE, ?MODULE, function_name, [arg1, "arg2"]),
+    ?assertEqual({ok, value}, erl_cache:get(?TEST_CACHE, Key)).
+
+generate_key(Cache, Module, _Function, Args) ->
+    {Cache, Module, Args}.
+
 %% Internal functions
 
 set_in_cache(K, V) ->
@@ -264,3 +277,8 @@ sum(A, B) when A < 5 ->
         A + B;
 sum(A, B) when A > 5 ->
         A + B.
+
+?CACHE(?TEST_CACHE, [{validity, 3000}, {evict, 5000},
+                     {key_generation, ?MODULE}, {wait_until_done, true}]).
+function_name(arg1, "arg2") ->
+    value.

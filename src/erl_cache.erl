@@ -57,6 +57,8 @@
 
 -type invalid_opt_error()::{invalid, config_key() | cache_name}.
 
+-type key_generation_module()::atom(). %% A module implementing the erl_cache_key_generator behaviour.
+
 -type cache_get_opt()::{wait_for_refresh, wait_for_refresh()}.
 
 -type cache_size()::non_neg_integer(). %% Soft limit to the cache size in MB
@@ -69,6 +71,7 @@
     {validity, validity()} |
     {evict, evict()} |
     {wait_until_done, wait_until_done()} |
+    {key_generation, key_generation_module()} |
     {error_validity, validity()} |
     {is_error_callback, is_error_callback()} |
     {refresh_callback, refresh_callback()}.
@@ -337,7 +340,7 @@ validate_opts(_, undefined) ->
 validate_opts(Opts, Defaults) ->
     CacheOpts = [validity, evict, refresh_callback, wait_for_refresh, max_cache_size,
                  wait_until_done, evict_interval, error_validity, is_error_callback,
-                 mem_check_interval],
+                 mem_check_interval, key_generation],
     ValidationResults = [{K, validate_value(K, Opts, Defaults)} || K <- CacheOpts],
     ErrorList = lists:dropwhile(
             fun ({K, {invalid, K}}) -> false; ({_, _}) -> true end, ValidationResults),
@@ -387,6 +390,12 @@ validate_value(Key, Opts, Defaults) when Key==wait_for_refresh; Key==wait_until_
         undefined -> default(Key, Defaults);
         B when is_boolean(B) -> B;
         _ -> {invalid, Key}
+    end;
+validate_value(Key, Opts, Defaults) when Key==key_generation ->
+    case proplists:get_value(Key, Opts, undefined) of
+        undefined -> default(Key, Defaults);
+        M when is_atom(M) -> M;
+        _ -> {invalid, Key}
     end.
 
 %% @private
@@ -411,6 +420,8 @@ default(is_error_callback, Defaults) ->
     proplists:get_value(is_error_callback, Defaults, fun is_error/1);
 default(wait_until_done, Defaults) ->
     proplists:get_value(wait_until_done, Defaults, ?DEFAULT_WAIT_UNTIL_DONE);
+default(key_generation, Defaults) ->
+    proplists:get_value(key_generation, Defaults, undefined);
 default(_, _) -> undefined.
 
 %% @private

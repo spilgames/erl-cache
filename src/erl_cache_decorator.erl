@@ -10,7 +10,12 @@
     (fun(() -> term())).
 cache_pt(Fun, Args, {Module, FunctionAtom, Name, Opts}) ->
     FinalOpts = [{refresh_callback, fun () -> Fun(Args) end} | Opts],
-    Key = {decorated, Module, FunctionAtom, erlang:phash2(Args)},
+    Key = case proplists:get_value(key_generation, Opts) of
+        Module when is_atom(Module) ->
+            apply(Module, generate_key, [Name, Module, FunctionAtom, Args]);
+        undefined ->
+            {decorated, Module, FunctionAtom, erlang:phash2(Args)}
+    end,
     FromCache = erl_cache:get(Name, Key, FinalOpts),
     case FromCache of
         {ok, Result} -> fun() -> Result end;
