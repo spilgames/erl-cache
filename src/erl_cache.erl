@@ -124,6 +124,7 @@ main(Args) ->
 -spec start() -> ok.
 %% @end
 start() ->
+    ok = lager:start(),
     ok = application:start(erl_cache).
 
 %% @private
