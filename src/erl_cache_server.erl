@@ -26,10 +26,17 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-ifdef(namespace_types).
+-type stats_dict() :: dict:dict().
+-else.
+-type stats_dict() :: dict().
+-endif.
+
+
 -record(state, {
     name::erl_cache:name(),                     %% The name of this cache instance
     cache::ets:tid(),                           %% Holds cache
-    stats::dict()                               %% Statistics about cache hits
+    stats::stats_dict()                         %% Statistics about cache hits
 }).
 
 -record(cache_entry, {
@@ -270,12 +277,12 @@ is_error_value(F, Value) when is_function(F) ->
     F(Value).
 
 %% @private
--spec update_stats(hit|miss|overdue|evict|set, dict()) -> dict().
+-spec update_stats(hit|miss|overdue|evict|set, stats_dict()) -> stats_dict().
 update_stats(Stat, Stats) ->
     update_stats(Stat, 1, Stats).
 
 %% @private
--spec update_stats(hit|miss|overdue|evict|set, pos_integer(), dict()) -> dict().
+-spec update_stats(hit|miss|overdue|evict|set, pos_integer(), stats_dict()) -> stats_dict().
 update_stats(Stat, N, Stats) ->
     dict:update_counter(total_ops, N, dict:update_counter(Stat, N, Stats)).
 
