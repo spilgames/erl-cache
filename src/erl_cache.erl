@@ -84,8 +84,9 @@
                     {miss, non_neg_integer()}.
 -type cache_stats()::[cache_stat()].
 
--type config_key()::validity | evict | refresh_callback | wait_for_refresh
-                  | wait_until_done | evict_interval | is_error_callback | error_validity.
+-type config_key()::validity | evict | refresh_callback | wait_for_refresh | max_cache_size
+                  | wait_until_done | evict_interval | error_validity | is_error_callback
+                  | mem_check_interval | key_generation.
 
 -type callback() :: function() | mfa().
 

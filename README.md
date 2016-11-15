@@ -1,5 +1,10 @@
-<!---
-@doc <!-- -->
+<a href="https://travis-ci.org/alertlogic/erl-cache" target="_blank"><img src="https://travis-ci.org/alertlogic/erl-cache.svg?branch=master"/></a>
+
+# erl-cache
+
+A generic in-node caching library with memoization support.
+
+This is a fork of [spilgames/erl-cache](https://github.com/spilgames/erl-cache) for [Alert Logic](https://github.com/alertlogic).
 
 <h3>Purpose</h3>
 
@@ -8,8 +13,6 @@ Do not expect a complex distributed application here. There are far more complex
 intended to act that way. Instead, erl_cache intends to be a simple solution that unifies common
 caching patterns within an erlang node which you probably have implemented a thousand times in one
 thousand slightly different ways. It's also a nice library if you want to do memoization in Erlang.
-
-<a href="https://travis-ci.org/spilgames/erl-cache" target="_blank"><img src="https://travis-ci.org/spilgames/erl-cache.svg?branch=master"/></a>
 
 <h3>Functional Description</h3>
 

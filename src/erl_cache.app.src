@@ -5,8 +5,8 @@
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib,
-                  lager
+                  stdlib % ,
+                  % lager % not starting lager; client applications can manage logging.
                  ]},
   {mod, { erl_cache_app, []}},
   {env, []}
