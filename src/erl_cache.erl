@@ -3,12 +3,7 @@
 -behaviour(gen_server).
 
 -include("erl_cache.hrl").
--include("logging.hrl").
-
-%% ==================================================================
-%% Escript API
-%% ==================================================================
--export([main/1]).
+-include_lib("kernel/include/logger.hrl").
 
 %% ==================================================================
 %% API Function Exports
@@ -25,11 +20,6 @@
         set_cache_defaults/2, get_cache_option/2,
         evict/2, evict/3
     ]).
-
--ignore_xref([
-    {basho_bench, main, 1}
-]).
-
 
 -type name() :: atom(). %% The identifeir for a cache server
 -type key() :: term().  %% The identifier for a cache entry
@@ -59,7 +49,6 @@
 
 -type key_generation_module()::atom(). %% A module implementing the erl_cache_key_generator behaviour.
 
--type cache_get_opt()::{wait_for_refresh, wait_for_refresh()}.
 
 -type cache_size()::non_neg_integer(). %% Soft limit to the cache size in MB
 -type cache_server_opt()::
@@ -67,6 +56,7 @@
                                                %% innaccurate when working with large binaries!
     | {mem_check_interval, pos_integer()}.
 
+-type cache_get_opt()::{wait_for_refresh, wait_for_refresh()}.
 -type cache_set_opt() ::
     {validity, validity()} |
     {evict, evict()} |
@@ -76,6 +66,7 @@
     {is_error_callback, is_error_callback()} |
     {refresh_callback, refresh_callback()}.
 -type cache_evict_opt() :: {wait_until_done, wait_until_done()}.
+-type decorator_opts()::[cache_get_opt() | cache_set_opt()].
 -type cache_opts()::[cache_get_opt() | cache_set_opt() | cache_evict_opt()
                      | {evict_interval, evict_interval()} | cache_server_opt()].
 
@@ -84,15 +75,16 @@
                     {miss, non_neg_integer()}.
 -type cache_stats()::[cache_stat()].
 
--type config_key()::validity | evict | refresh_callback | wait_for_refresh
-                  | wait_until_done | evict_interval | is_error_callback | error_validity.
+-type config_key()::validity | evict | refresh_callback | wait_for_refresh | max_cache_size
+                  | wait_until_done | evict_interval | is_error_callback | error_validity
+                  | mem_check_interval | key_generation.
 
--type callback() :: function() | mfa().
+-type callback() :: function() | {atom(), atom(), [term()]}.
 
 -export_type([
         name/0, key/0, value/0, validity/0, evict/0, evict_interval/0, refresh_callback/0,
         cache_stats/0, wait_for_refresh/0, wait_until_done/0, error_validity/0, is_error_callback/0,
-        cache_size/0, cache_opts/0
+        cache_size/0, cache_opts/0, decorator_opts/0
 ]).
 
 %% ==================================================================
@@ -109,13 +101,6 @@
 -define(CACHE_MAP, cache_map).
 -define(SERVER, ?MODULE).
 
-
-%% ====================================================================
-%% Escript
-%% ====================================================================
-main(Args) ->
-    basho_bench:main(Args).
-
 %% ====================================================================
 %% API
 %% ====================================================================
@@ -124,7 +109,6 @@ main(Args) ->
 -spec start() -> ok.
 %% @end
 start() ->
-    ok = lager:start(),
     ok = application:start(erl_cache).
 
 %% @private
@@ -162,7 +146,7 @@ set_cache_defaults(Name, CacheOpts) ->
     end.
 
 %% @doc Gets the default value of a cache server option.
--spec get_cache_option(name(), cache_opts()) -> term().
+-spec get_cache_option(name(), config_key()) -> term().
 %% @end
 get_cache_option(Name, Opt) ->
     case ets:lookup(?CACHE_MAP, Name) of
@@ -192,7 +176,7 @@ list_cache_servers() ->
     ets:select(?CACHE_MAP, [{{'$1', '_'}, [], ['$1']}]).
 
 %% @doc Gets the value associated with a given key in the cache signaled by the given name.
--spec get(name(), key(), [cache_get_opt()]) ->
+-spec get(name(), key(), cache_opts()) ->
     {error, not_found} |
     {error, invalid_opt_error()} |
     {ok, value()}.
@@ -222,7 +206,7 @@ set(Name, Key, Value) ->
 %% @doc Sets a cache entry in a cache instance.
 %% The options passed in this function call will overwrite the default ones for the cache instance
 %% for any operation related to this specific key.
--spec set(name(), key(), value(), [cache_set_opt()]) -> ok | {error, invalid_opt_error()}.
+-spec set(name(), key(), value(), cache_opts()) -> ok | {error, invalid_opt_error()}.
 %% @end
 set(Name, Key, Value, Opts) ->
     case validate_opts(Opts, get_name_defaults(Name)) of
@@ -281,7 +265,7 @@ handle_call({stop_cache, Name}, _From, #state{}=State) ->
     Res = case is_cache_server(Name) of
         true ->
             ok = erl_cache_server_sup:remove_cache(Name),
-            ?INFO("Stopping cache server '~p'", [Name]),
+            ?LOG_INFO("Stopping cache server '~p'", [Name]),
             true = ets:delete(?CACHE_MAP, Name),
             ok;
         false ->
@@ -300,7 +284,7 @@ do_start_cache(Name, Opts) ->
             case validate_opts(Opts, []) of
                 {ok, ValidatedOpts} ->
                     true = ets:insert(?CACHE_MAP, {Name, ValidatedOpts}),
-                    ?INFO("Starting cache server '~p'", [Name]),
+                    ?LOG_INFO("Starting cache server '~p'", [Name]),
                     {ok, _} = erl_cache_server_sup:add_cache(Name),
                     ok;
                 {error, _}=E -> E
@@ -449,4 +433,3 @@ get_name_defaults(Name) ->
         [{Name, Opts}] -> Opts;
         [] -> undefined
     end.
-
