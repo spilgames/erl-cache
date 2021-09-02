@@ -12,3 +12,7 @@ doc/edoc-info
 doc/doc
 tests/
 /erl_cache
+/_build
+/.erl_cache.plt
+/TEST*
+/rebar.lock

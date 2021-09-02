@@ -6,8 +6,9 @@
 %% API
 %% ====================================================================
 
--spec cache_pt(function(), [term()], {atom(), atom(), erl_cache:name(), erl_cache:cache_opts()}) ->
-    (fun(() -> term())).
+-spec cache_pt(function(), [term()], {atom(), atom(), erl_cache:name(),
+                                      [erl_cache:cache_opts()]}) ->
+    (fun(() -> term())) | no_return().
 cache_pt(Fun, Args, {Module, FunctionAtom, Name, Opts}) ->
     FinalOpts = [{refresh_callback, fun () -> Fun(Args) end} | Opts],
     Key = case proplists:get_value(key_generation, Opts) of
@@ -28,4 +29,3 @@ cache_pt(Fun, Args, {Module, FunctionAtom, Name, Opts}) ->
         {error, Err} ->
             throw({error, {cache_pt, Err}})
     end.
-

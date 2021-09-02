@@ -1,9 +1,9 @@
-REBAR ?= rebar
+REBAR ?= rebar3
 ifneq ($(wildcard rebar),)
-	REBAR := ./rebar
+	REBAR := ./rebar3
 endif
 
-.PHONY: clean test docs benchmark docsclean go quick dialyzer
+.PHONY: clean test docs docsclean go compile get-deps dialyzer
 
 all: get-deps compile
 
@@ -11,36 +11,26 @@ get-deps:
 	$(REBAR) get-deps
 
 compile:
-	$(REBAR) compile
-	$(REBAR) skip_deps=true xref
-
-quick:
-	$(REBAR) skip_deps=true compile
-	$(REBAR) skip_deps=true xref
+	$(REBAR) compile xref
 
 clean:
 	$(REBAR) clean
-	rm -f erl_cache
+	rm -fr _build
 
 test: compile
-	$(REBAR) skip_deps=true eunit
+	$(REBAR) eunit --cover
 
 docs: docsclean
-	ln -s . doc/doc
-	$(REBAR) skip_deps=true doc
+	$(REBAR) edoc
 
 docsclean:
 	rm -f doc/*.html doc/*.css doc/erlang.png doc/edoc-info doc/doc
 
 go:
-	erl -name erl_cache -pa deps/*/ebin -pa ebin/ -s erl_cache start ${EXTRA_ARGS}
+	$(REBAR) shell
 
-dialyzer:
-	dialyzer -c ebin/ -Wunmatched_returns -Werror_handling -Wrace_conditions
+.erl_cache.plt:
+	dialyzer --output_plt $@ --build_plt --apps erts kernel stdlib
 
-erl_cache:
-	REBAR_BENCH=1 $(REBAR) get-deps compile
-	REBAR_BENCH=1 $(REBAR) escriptize skip_deps=true
-
-benchmark: erl_cache quick
-	./erl_cache priv/bench.conf
+dialyzer: .erl_cache.plt compile
+	dialyzer --plt $< -c _build/default/deps/erl_cache/ebin/ -Wunknown -Wunmatched_returns

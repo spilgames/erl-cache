@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 -include("erl_cache.hrl").
--include("logging.hrl").
+-include_lib("kernel/include/logger.hrl").
 
 %% ==================================================================
 %% API Function Exports
@@ -26,11 +26,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--ifdef(namespace_types).
 -type stats_dict() :: dict:dict().
--else.
--type stats_dict() :: dict().
--endif.
 
 
 -record(state, {
@@ -40,16 +36,16 @@
 }).
 
 -record(cache_entry, {
-    key::erl_cache:key(),
-    value::erl_cache:value(),
-    created::pos_integer(),
-    validity::pos_integer(),
-    evict::pos_integer(),
-    validity_delta::erl_cache:validity(),
-    error_validity_delta::erl_cache:error_validity(),
-    evict_delta::erl_cache:evict(),
-    refresh_callback::erl_cache:refresh_callback(),
-    is_error_callback::erl_cache:is_error_callback()
+    key::erl_cache:key() | '_',
+    value::erl_cache:value() | '_',
+    created::pos_integer() | '_',
+    validity::pos_integer() | '_',
+    evict::pos_integer() | '$1' | '_',
+    validity_delta::erl_cache:validity() | '_',
+    error_validity_delta::erl_cache:error_validity() | '_',
+    evict_delta::erl_cache:evict() | '_',
+    refresh_callback::erl_cache:refresh_callback() | '_',
+    is_error_callback::erl_cache:is_error_callback() | '_'
 }).
 
 %% ==================================================================
@@ -72,7 +68,7 @@ get(Name, Key, WaitForRefresh) ->
             gen_server:cast(Name, {increase_stat, overdue}),
             {ok, Value};
         [#cache_entry{evict=Evict, refresh_callback=Cb}=Entry] when Now < Evict, Cb /=undefined ->
-            ?DEBUG("Refreshing overdue key ~p", [Key]),
+            ?LOG_DEBUG("Refreshing overdue key ~p", [Key]),
             gen_server:cast(Name, {increase_stat, overdue}),
             {ok, NewVal} = refresh(Name, Entry, WaitForRefresh),
             {ok, NewVal};
@@ -183,7 +179,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% @private
 -spec operate_cache(erl_cache:name(), function(), list(), atom(), boolean()) -> ok.
 operate_cache(Name, Function, Input, Stat, Sync) ->
-    case Sync of
+    _ = case Sync of
         true -> apply(Function, Input);
         false -> spawn_link(erlang, apply, [Function, Input])
     end,
@@ -208,7 +204,7 @@ purge_cache(Name) ->
     {Time, Deleted} = timer:tc(
         ets, select_delete,
         [get_table_name(Name), [{#cache_entry{evict='$1', _='_'}, [{'<', '$1', Now}], [true]}]]),
-    ?INFO("~p cache purged in ~pms", [Name, Time]),
+    ?LOG_INFO("~p cache purged in ~pms", [Name, Time]),
     gen_server:cast(Name, {increase_stat, evict, Deleted}),
     ok.
 
@@ -238,7 +234,7 @@ do_refresh(Name, #cache_entry{key=Key, validity_delta=ValidityDelta, evict_delta
             Entry#cache_entry{value=NewVal, validity=Now+ValidityDelta,
                               evict=Now+ValidityDelta+EvictDelta};
         true ->
-            ?NOTICE("Error refreshing ~p at ~p: ~p. Disabling auto refresh...",
+            ?LOG_NOTICE("Error refreshing ~p at ~p: ~p. Disabling auto refresh...",
                     [Key, Name, NewVal]),
             Entry#cache_entry{refresh_callback=undefined}
     end,
@@ -253,7 +249,7 @@ check_mem_usage(Name) ->
     CurrentMB = erlang:trunc((CurrentWords * erlang:system_info(wordsize)) / (1024*1024*8)),
     case MaxMB /= undefined andalso CurrentMB > MaxMB of
         true ->
-            ?WARNING("~p exceeded memory limit of ~pMB: ~pMB in use! Forcing eviction...",
+            ?LOG_WARNING("~p exceeded memory limit of ~pMB: ~pMB in use! Forcing eviction...",
                      [Name, MaxMB, CurrentMB]),
             purge_cache(Name);
         false -> ok
@@ -263,7 +259,9 @@ check_mem_usage(Name) ->
     ok.
 
 %% @private
--spec do_apply(mfa() | function()) -> term().
+-spec do_apply
+    ({atom(), atom(), [term()]}) -> term();
+    (function()) -> term().
 do_apply({M, F, A}) when is_atom(M), is_atom(F), is_list(A) ->
     apply(M, F, A);
 do_apply(F) when is_function(F) ->
@@ -301,4 +299,3 @@ get_table_name(Name) ->
 -spec to_atom(string()) -> atom().
 to_atom(Str) ->
     try list_to_existing_atom(Str) catch error:badarg -> list_to_atom(Str) end.
-

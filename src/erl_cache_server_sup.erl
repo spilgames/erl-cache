@@ -2,7 +2,7 @@
 
 -behaviour(supervisor).
 
--include("logging.hrl").
+-include_lib("kernel/include/logger.hrl").
 
 %% API
 -export([start_link/0, add_cache/1, remove_cache/1]).
@@ -22,7 +22,7 @@ start_link() ->
 
 -spec add_cache(erl_cache:name()) -> {ok, pid()}.
 add_cache(Name) ->
-    ?INFO("Adding supervised cache '~p'~n", [Name]),
+    ?LOG_INFO("Adding supervised cache '~p'~n", [Name]),
     supervisor:start_child(?MODULE, cache_spec(Name)).
 
 -spec remove_cache(erl_cache:name()) -> ok.
@@ -52,4 +52,3 @@ init([]) ->
 -spec cache_spec(erl_cache:name()) -> supervisor:child_spec().
 cache_spec(Name) ->
     {Name, {erl_cache_server, start_link, [Name]}, permanent, 5000, worker, [erl_cache_server]}.
-

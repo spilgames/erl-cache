@@ -152,20 +152,3 @@ running out of the configured memory for the cache ets.
 The memory control mechanism is not accurate and doesn't deal properly with cached large binaries,
 since the cache ets will only store references to them and it's not possible to figure the exact
 size of the referenced binaries.
-
-<h3>Benchmarking</h3>
-This application has a ready benchmarking suite. It is based on basho bench. To
-run the benchmark:
-
-<pre>
-$ make benchmark<br/>
-</pre>
-
-In order to render the results (gnuplot is needed):
-<pre>
-$ ./deps/basho_bench/priv/gp_throughput.sh
-</pre>
-
-For full usage guide please consult <a
-href="http://docs.basho.com/riak/latest/ops/building/benchmarking/">basho bench
-documentation</a>.

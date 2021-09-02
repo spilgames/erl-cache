@@ -1,7 +1,7 @@
 -module(erl_cache_eunit).
 
 -include_lib("eunit/include/eunit.hrl").
--include("erl_cache.hrl").
+-include("include/erl_cache.hrl").
 -include_lib("decorator_pt/include/decorator_pt.hrl").
 
 -behaviour(erl_cache_key_generator).
